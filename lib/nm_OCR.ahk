@@ -246,13 +246,19 @@ nm_OCRFindPollenLabel(winX, winY, winW, pass := 1, dump := 0) {
 	pBM := Gdip_BitmapFromScreen(winX + x0 "|" winY "|" w "|" h)
 	found := 0, bestD := 99, honeyWord := 0, isHoney := 0
 	if (result := nm_OCR_FromBitmap(pBM, nm_OCRConfig.OffsetScale, pass = 2)) {
-		for word in result.Words {
+		; The top bar labels start their line ("Pollen 0/35,476,875", "Honey 8,772,..."). The same words also
+		; appear in prompts ("Stop Making Honey", "Collect Pollen"), always after another word, and those sit
+		; lower down, which would give a far too large offset. So only a line's first word counts, and the
+		; topmost one wins.
+		for line in result.Lines {
+			words := line.Words
+			if !words.Length
+				continue
+			word := words[1]
 			; the "Honey" label sits on the same top bar row, so it's a second anchor if "Pollen" isn't read
 			if (nm_OCR_MatchDistance("honey", nm_OCR_Norm(word.Text)) <= 1) && (!honeyWord || word.y < honeyWord.y - 4)
 				honeyWord := word
 			d := nm_OCR_MatchDistance("pollen", nm_OCR_Norm(word.Text))
-			; the top bar label is the topmost "Pollen" on screen: lower ones are other text, e.g. a
-			; "Collect Pollen" prompt at the hive, which would give a far too large offset
 			if (d <= 1) && (!found || (word.y < found.y - 4) || (Abs(word.y - found.y) <= 4 && d < bestD))
 				found := word, bestD := d
 		}
