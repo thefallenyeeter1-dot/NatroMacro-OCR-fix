@@ -429,9 +429,9 @@ nm_dailyReconnect(){
 	}
 	if((Number(ReconnectMin)=RCminUTC) && HourReady && (MacroState = 2)) {
 		LastDailyReconnect := nowUnix()
-		if WinExist("natro_macro ahk_class AutoHotkey") {
-			Send_WM_COPYDATA("Closing: Roblox, Daily Reconnect", "natro_macro ahk_class AutoHotkey")
-			PostMessage 0x5557, 60
+		if (hwnd := WinExist("natro_macro ahk_class AutoHotkey")) {
+			Send_WM_COPYDATA("Closing: Roblox, Daily Reconnect", "ahk_id " hwnd)
+			PostMessage 0x5557, 60, 1,, "ahk_id " hwnd
 		}
 	}
 }
