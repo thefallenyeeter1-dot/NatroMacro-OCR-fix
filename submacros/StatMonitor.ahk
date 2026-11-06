@@ -2483,7 +2483,27 @@ DrawReportBackground(G, w, h)
 		if (A_LoopFileExt ~= "i)^(png|jpe?g|bmp)$")
 			files.Push(A_LoopFileFullPath)
 
-	if (files.Length && (pImg := Gdip_CreateBitmapFromFile(files[Random(1, files.Length)])))
+	; pick a random background, but never the same one as the previous report (remembered in
+	; settings\report_bg_last.txt so it also holds across macro restarts). Pure random picks repeated
+	; often, especially with only a few images
+	pick := ""
+	if files.Length
+	{
+		last := ""
+		try last := Trim(FileRead(A_WorkingDir "\settings\report_bg_last.txt"))
+		choices := []
+		for f in files
+			if (files.Length = 1) || (f != last)
+				choices.Push(f)
+		if !choices.Length
+			choices := files
+		pick := choices[Random(1, choices.Length)]
+		try {
+			DirCreate A_WorkingDir "\settings"
+			f := FileOpen(A_WorkingDir "\settings\report_bg_last.txt", "w"), f.Write(pick), f.Close()
+		}
+	}
+	if ((pick != "") && (pImg := Gdip_CreateBitmapFromFile(pick)))
 	{
 		iw := Gdip_GetImageWidth(pImg), ih := Gdip_GetImageHeight(pImg)
 		scale := Max(w / iw, h / ih)
