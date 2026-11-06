@@ -12959,6 +12959,35 @@ nm_FindItem(chosenItem, *) {
 		nm_setShiftLock(Prev_ShiftLock)
 		return 0
 	}
+	; find the item by its name with OCR (nm_InventorySearch); the old icon search below is the fallback
+	if (pos := nm_InventorySearch(items[chosenItem])) {
+		; pos[2] is the top of the item's name + 190, measured from windowY+yOffset+150; the picture starts
+		; just above the row and is 97 px tall. If the row is cut off at the bottom of the window (the amount
+		; is shown at the bottom of the row), scroll down a notch at a time until the whole row is visible
+		hwnd := GetRobloxHWND(), nameY := pos[2] - 190
+		Loop 6
+		{
+			GetRobloxClientPos(hwnd)
+			if (windowY + yOffset + 150 + nameY - 12 + 97 <= windowY + windowHeight - 50)
+				break
+			SendEvent "{Click " windowX+30 " " windowY+yOffset+200 " 0}"
+			SendInput "{WheelDown}"
+			Sleep 500 ; let the list finish scrolling
+			if ((y := nm_InventoryLocate(items[chosenItem], hwnd, yOffset)) = "")
+				break
+			nameY := y
+		}
+		GetRobloxClientPos(hwnd)
+		nm_InventoryMouseAway()
+		Sleep 300 ; make sure the row has finished drawing (name and amount) before the picture is taken
+		if WinExist("Status.ahk ahk_class AutoHotkey")
+			SendMessage(0x5559, windowY + yOffset + 150 + nameY - 12, , , , , , , 2000)
+		sleep 1000
+		DetectHiddenWindows 0
+		nm_OpenMenu()
+		nm_setShiftLock(Prev_ShiftLock)
+		return
+	}
 	MouseMove windowX+46, windowY+yOffset+219
 	Loop 60 {
 		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+150 "|306|" windowHeight-300)
@@ -21636,6 +21665,7 @@ nm_Feed(food){
 				return 0
 			}
 		}
+		nm_InventoryMouseAway() ; a hovered item shows its description instead of its name
 		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" (54*windowWidth)//100-50 "|" Max(480, windowHeight-offsetY-150))
 
 		pos := nm_OCRFindItem(pBMScreen, food) ; OCR item name search
@@ -22900,6 +22930,7 @@ ba_placePlanter(fieldName, planter, planterNum, atField:=0){
 				return 0
 			}
 		}
+		nm_InventoryMouseAway() ; a hovered item shows its description instead of its name
 		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
 		planterPos := nm_OCRFindItem(pBMScreen, planterName) ; OCR item name search
@@ -23389,6 +23420,7 @@ mp_PlantPlanter(PlanterIndex) {
 				return 0
 			}
 		}
+		nm_InventoryMouseAway() ; a hovered item shows its description instead of its name
 		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
 		planterPos := nm_OCRFindItem(pBMScreen, MPlanterName) ; OCR item name search
@@ -23523,6 +23555,7 @@ mp_UseGlitter(PlanterIndex, atField:=0) {
 				return 0
 			}
 		}
+		nm_InventoryMouseAway() ; a hovered item shows its description instead of its name
 		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
 		glitterPos := nm_OCRFindItem(pBMScreen, "glitter") ; OCR item name search

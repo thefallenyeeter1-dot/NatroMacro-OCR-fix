@@ -74,6 +74,7 @@ GetYOffset(hwnd?, &fail?)
 		{
 			GetRobloxClientPos(hwnd)
 			if ((centre := nm_OCRFindPollenLabel(windowX, windowY, windowWidth, Mod(A_Index - 1, 3) + 1, A_Index = 6)) != "")
+				&& (centre - 18.5 >= -20) && (centre - 18.5 <= 90) ; the top bar is never further down than this
 			{
 				hRoblox := hwnd, fail := 0
 				offset := Round(centre - 18.5) + nm_OCRConfig.OffsetCorrection
