@@ -182,7 +182,7 @@ nm_importPatterns()
 	if FileExist("settings\imported\patterns.ahk")
 		file := FileOpen("settings\imported\patterns.ahk", "r"), imported := file.Read(), file.Close()
 	else
-		imported := ""
+		imported := "", hashDefaults()
 
 	if FileExist("settings\imported\patternHashes.ahk")
 		getHashes()
@@ -8299,7 +8299,7 @@ nm_BitterberryFeeder(*)
 		{
 			Sleep 100
 			pBMScreen := Gdip_BitmapFromScreen(windowX+(54*windowWidth)//100-300 "|" windowY+offsetY+(46*windowHeight)//100-59 "|250|100")
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["feed"], &pos, , , , , 2, , 2) = 1)
+			if (nm_OCRFindWord(pBMScreen, "Feed", &pos) = 1)
 			{
 				Gdip_DisposeImage(pBMScreen)
 				SendEvent "{Click " windowX+(54*windowWidth)//100-300+SubStr(pos, 1, InStr(pos, ",")-1)+140 " " windowY+offsetY+(46*windowHeight)//100-59+SubStr(pos, InStr(pos, ",")+1)+5 "}" ; Click Number
@@ -8381,7 +8381,7 @@ nm_BasicEggHatcher(*)
 	bitmaps["basicegg"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAAGIAAAAaCAMAAAB7CnmQAAABuVBMVEUbKjUdLDceLDceLTgfLjkgLzohMDoiMDsjMTwkMj0lND4nNUAoNkApOEIqOEMrOUMsOkQtO0UuPEYvPEYvPUcwPkgxP0kyQEkzQUo0QUs1Qkw2RE03RU44RU85Rk86SFE7SVI8SVNATVZEUVlGUltGU1xKVl9LV19MWWFPW2NQXGRRXWVVYWhWYWlXYmpXY2tdaXBeanFga3JhbHNibXRibnVjbnVkb3ZmcXhncnhoc3ppdHtqdXtsdn1td35ueX9veoBweoFzfYN0foR1f4V2gIZ3gYd4god6hIp+h42Ci5GFjpSGj5SIkZaJkpePl5yQmJ2VnaGWnqKZoaWaoqabo6ecpKidpamfp6qjq66mrbCnr7Kor7Ots7avtrmwt7m1vL63vcC+xMa/xcfAxsjBx8nCyMnDyMrEyszFy8zGzM3HzM7Izc/Jzs/Jz9DN0tPQ1dbR1tfS19jT2NjU2NnV2drV2tvW29zY3N3Z3d7a39/c4OHe4uLg5OTg5eXi5ubj5+fl6ejm6enm6uro7Ovp7ezq7e3r7u7r7+7s8O/t8fDu8fHv8vHw8/Lx9PPx9fTy9fTz9vX09/Y9aLFlAAACKklEQVR42u3Ta1MSUQDG8cfiVmZBUoqmBhVkRtj9JkmoSRGmlbZadiG6mXnpSmG6QWlqCDyfuNlYTu3sMsNM6zufV/9X5zc7Zw+46cMWUTvhg7KdoenNJgDbU1bZa9fxEvXzQt2zWgn4WGVTzs7/JSIkc+eBNGubIKJq1UZwHkiRfHm5xdI8mOW/yySTeTOIWeANmd4GZQdzJJOd9Q1d4wVyBJBJyv0t1v3nZoyJwu1DDncEkDStIZaCsK6QHDgQH+sGhsgndVAWrhDf2qHM8cKQCKM8SbSGUDdIkqt5stiGIHkS/uzHIW+6QtxA3f21lNOaoPa6ZaWfA+GFhR5AEm1A7HhLkp/ONmxvqkeAjMDzuMgSK8Q+nCY5vUQjIgbnL/IrIIk2IOCWyczecvvJd7sAT2K5QqwAd6pf9wl0Uz1WbS0RJbkcA0bIa2ifXf/QoRD8fNEKtM6pRBp4UJ3wo1c9VrSOYN6BAfIwxkge+UOQi3EbAjV9RRdOqceK1hPrdsSVw28JYoPkKPBTcxevFg2JCJqK6rFq64nvUWCK7IcrlbtrU4gJz/gPuQeODe0fZUkYEY+A69nMBUASbXTdvSS/iOuWG8t1U7yLNt27UBciS0G1JdE6wuIdLlAxrrjtR6+GYqQc99ldxyb593X3NVvdZ2ZoRHA13mFtvARIogVh6uaBh5o2nxgG5jRtOvF+N1oLmjabmNwDjGradOIe0Kdp84m1wERJ378B3+p4iisaatgAAAAASUVORK5CYII=")
 	bitmaps["royaljelly"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAAGwAAAAcCAMAAACzmqo+AAAB+FBMVEUbKjUcKzYdLDceLDceLTgfLjkgLzohMDoiMDsjMTwkMj0kMz0lND4mND8nNUAoNkApN0EpOEIqOEMrOUMsOkQtO0UuPEYvPEYvPUcwPkgyQEkzQUo0QUs1Qkw1Q0w3RU44RU85Rk86SFE7SVI8SVM+S1Q/TFVDUFlEUVlFUVpGUltGU1xIVV1KVl9LV19MWWFPW2NWYWlXYmpXY2tbZm5cZ29daG9daXBga3JibXRibnVlcHdpdHttd35weoFxe4FyfIJzfYN0foR1f4V2gIZ3gYd4god5goh6hIp7hYt8hot+h41/iI6Aio+BipCCi5GFjpSFjpOGj5SHkJWIkZaJkpeKk5iKk5eLlJmMlZqNlpqPl5yQmJ2QmZ2Rmp6Sm5+UnKCVnaGaoqabo6ecpKigp6ujq66kq6+lrLCor7Ots7avtrmwt7mxt7qyuLu1vL62vL+3vcC5wMK6wMO8wsS9w8W/xcfAxsjDyMrDycvEyszGzM3HzM7Jzs/K0NHL0NLN0tPO09TP1NXQ1dbR1tfS19jT2NjV2drV2tvW29zX3NzY3N3a39/b4ODc4OHd4eLe4uLf4+Pg5OTg5eXi5ubj5+fk6Ojm6enm6urn6+vo7Ovp7ezq7e3r7u7r7+7s8O/t8fDu8fHv8vHw8/Lx9fTy9fTz9vX09/a7z3nGAAACf0lEQVR42u3W+VOMcQDH8Y9KVkUUkXQqJEqH0OWokHLlzplyRSgJFZWjnEmOtqhWx77/TbNPzHeenbZtZk3GjPcPO7O73/m8dvZ5fnjEPKb/2L+IpcqTI+sBc6s9d2RuR8xBb0wKaWEuXZe+Y69Beul9ZPrVJ6Z1bvBf7eyYOVI7M7YHGMiROucLo0tqwmdtRfEL4/YN/insmfQC+FyW4EiqGIRT1nvr81LeBk//0c5ZMFd1UujaiiEbZlsx2NBOpQMD8fKU8pX3QaoEqJSeQlni0frt0knf2FSOPKW7bJhtReYGWfwEKFdks6txsY5AtmImYDJWGcDYBEwlKds3Vqfo5pGWKF2yYbYVgwV1A1NLdBo4qFVwU7oF96Q64HXB8pA1S5XpG9ugGqBamXbMrJhr1ig1Ax+kx1jfDeNapm1QqLBh6IuR1Raf2NgCTRdhx8yKwcajVAR0Sr1Ah/QK9iq43+lQMVCu5K4fvSm+sZ4B/W7ChpkVg7Fb4SPwUWoDmqxz7VJNvfQI2KR6IMMbw9kHcE3qH5XOznjrmxWDtUo3wB3965rFA6xXSqbSsJhzM2CTu8K2TgIlWuEmWXnAuB2zrRjMHa9s4LAi7rpuO6Z/5UVJugxQqpUPnVcWeWHsl3b0OOtCVAXHteDqWGtsXpsXZlYMxiEF9YMzTZ7SRwA+hUihXwDezXyDuApktXkURjfKU+Rzb8ysGKxbugAMVyU7Uo+NYpUvFYKlFa92ZJXkHrBjuBuyYxelnrCOD1cmhMYVv8EbMytits5L9wkks+IfS1eimwAyK/6xDukMgWRW/GMlCu4ngMyKf+xbuPIJJLPiH6uT7hBAZuVvPMr9BDBOM9MqS26gAAAAAElFTkSuQmCC")
 	bitmaps["giftedstar"] := Gdip_CreateBitmap(8,8), G := Gdip_GraphicsFromImage(bitmaps["giftedstar"]), Gdip_GraphicsClear(G,0xffffac33), Gdip_DeleteGraphics(G)
-	bitmaps["yes"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAAB0AAAAPAQMAAAAiQ1bcAAAABlBMVEUAAAD3//lCqWtQAAAAAXRSTlMAQObYZgAAAFZJREFUeAEBSwC0/wDDAAfAAEIACGAAfgAQMAA8ABAQABgAIAgAGAAgCAAYACAYABgAP/gAGAAgAAAYAAAAABgAIAAAGAAwAAAYADAAABgAGDAAGAAP4FGfB+0KKAbEAAAAAElFTkSuQmCC")
+	bitmaps["yes"] := Gdip_CreateBitmapFromFile(A_ScriptDir ".\..\nm_image_assets\general\yes.png")
 	#Include "%A_ScriptDir%\nm_image_assets\offset\bitmaps.ahk"
 	common := Gdip_CreateBitmap(1,4), G := Gdip_GraphicsFromImage(common), Gdip_GraphicsClear(G,0xffae792f), Gdip_DeleteGraphics(G)
 	mythic := Gdip_CreateBitmap(2,2), G := Gdip_GraphicsFromImage(mythic), Gdip_GraphicsClear(G,0xffbda4ff), Gdip_DeleteGraphics(G)
@@ -8481,7 +8481,7 @@ nm_BasicEggHatcher(*)
 	}
 	YesButton(){
 		pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-		if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1)
+		if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1)
 		{
 			Gdip_DisposeImage(pBMScreen)
 			SendEvent "{Click " windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1) " " windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1) "}"
@@ -9079,6 +9079,7 @@ nm_MakeSuggestionButton(*){
 blc_mutations(*) {
 	global
 	local script, exec
+	; Made by @definetlynotray on discord
 	try ProcessClose(MGUIPID)
 	script :=
 	(
@@ -9090,15 +9091,20 @@ blc_mutations(*) {
 	 * @date 2024/07/24
 	 * @version 0.0.1
 	 ***********************************************************************/
+	; Made by @definetlynotray on discord
 
 	#SingleInstance Force
 	#Requires AutoHotkey v2.0
 	#Warn VarUnset, Off
+	#Warn LocalSameAsGlobal, Off
 	;=============INCLUDES=============
 	#Include %A_ScriptDir%\lib\Gdip_All.ahk
 	#include %A_ScriptDir%\lib\Roblox.ahk
 	#include %A_ScriptDir%\lib\Gdip_ImageSearch.ahk
 	#include %A_ScriptDir%\lib\ErrorHandling.ahk
+	#include %A_ScriptDir%\lib\nm_OpenMenu.ahk
+	#include %A_ScriptDir%\lib\nm_InventorySearch.ahk
+	#include %A_ScriptDir%\lib\nowUnix.ahk
 	;==================================
 	SendMode("Event")
 	CoordMode(`'Pixel`', `'Screen`')
@@ -9127,18 +9133,34 @@ blc_mutations(*) {
 	traySetIcon(".\nm_image_assets\birb.ico")
 	getConfig() {
 		global
-		local k, v, p, c, i, section, key, value, inipath, config, f, ini
+		local k, v, p, c, i, section, key, value, inipath, config, f, ini, configKeyLookup, canonicalKey
 		config := {
 			mutations: {
 				Mutations: 0,
-				Ability: 0,
-				Gather: 0,
-				Convert: 0,
-				Energy: 0,
-				Movespeed: 0,
-				Crit: 0,
-				Instant: 0,
-				Attack: 0
+				AbilityPct: 0,
+				GatherPct: 0,
+				GatherFlat: 0,
+				ConvertPct: 0,
+				ConvertFlat: 0,
+				InstantPct: 0,
+				CritPct: 0,
+				AttackPct: 0,
+				AttackFlat: 0,
+				EnergyPct: 0,
+				MovespeedFlat: 0
+			},
+			mutationThresholds: {
+				AbilityPctMin: "",
+				GatherPctMin: "",
+				GatherFlatMin: "",
+				ConvertPctMin: "",
+				ConvertFlatMin: "",
+				InstantPctMin: "",
+				CritPctMin: "",
+				AttackPctMin: "",
+				AttackFlatMin: "",
+				EnergyPctMin: "",
+				MovespeedFlatMin: ""
 			},
 			bees: {
 				Bomber: 0,
@@ -9182,83 +9204,186 @@ blc_mutations(*) {
 				yPos: A_ScreenHeight//2-h//2
 			},
 			extrasettings: {
+				autoNeon: 0,
 				mythicStop: 0,
 				giftedStop: 0
+			},
+			neon: {
+				beeX: "",
+				beeY: "",
+				lastFed: 0,
+				expiresAt: 0
 			}
 		}
+		configKeyLookup := Map()
+		for _, section in config.OwnProps()
+			for key in section.OwnProps()
+				configKeyLookup[StrLower(key)] := key
 		for i, section in config.OwnProps()
 			for key, value in section.OwnProps()
 				%key% := value
 		if !FileExist(".\settings")
 			DirCreate(".\settings")
 		inipath := ".\settings\mutations.ini"
-		if FileExist(inipath) {
-			loop parse FileRead(inipath), "``n", "``r" A_Space A_Tab {
+		iniText := FileExist(inipath) ? FileRead(inipath) : ""
+		if (iniText != "") {
+			skipSection := 0
+			loop parse iniText, "``n", "``r" A_Space A_Tab {
 				switch (c:=SubStr(A_LoopField,1,1)) {
-					case "[", ";": continue
+					case "[":
+						sectionName := Trim(SubStr(A_LoopField, 2, InStr(A_LoopField, "]") - 2))
+						skipSection := (SubStr(sectionName, 1, 13) = "beeMutations_")
+						continue
+					case ";":
+						continue
 					default:
-					if (p := InStr(A_LoopField, "="))
-						try k := SubStr(A_LoopField, 1, p-1), %k% := IsInteger(v := SubStr(A_LoopField, p+1)) ? Integer(v) : v
+						if skipSection
+							continue
+						if (p := InStr(A_LoopField, "="))
+							try {
+								k := SubStr(A_LoopField, 1, p-1)
+								canonicalKey := configKeyLookup.Has(StrLower(k)) ? configKeyLookup[StrLower(k)] : k
+								v := SubStr(A_LoopField, p+1)
+								%canonicalKey% := IsInteger(v) ? Integer(v) : v
+							}
 				}
 			}
 		}
-		ini:=""
-		for k, v in config.OwnProps() {
-			ini .= "[" k "]``r``n"
-			for i in v.OwnProps()
-				ini .= i "=" %i% "``r``n"
-			ini .= "``r``n"
+		if !InStr(iniText, "AbilityPct=")
+			try AbilityPct := Ability
+		if !InStr(iniText, "GatherPct=")
+			try GatherPct := Gather
+		if !InStr(iniText, "GatherFlat=")
+			try GatherFlat := Gather
+		if !InStr(iniText, "ConvertPct=")
+			try ConvertPct := Convert
+		if !InStr(iniText, "ConvertFlat=")
+			try ConvertFlat := Convert
+		if !InStr(iniText, "InstantPct=")
+			try InstantPct := Instant
+		if !InStr(iniText, "CritPct=")
+			try CritPct := Crit
+		if !InStr(iniText, "AttackPct=")
+			try AttackPct := Attack
+		if !InStr(iniText, "AttackFlat=")
+			try AttackFlat := Attack
+		if !InStr(iniText, "EnergyPct=")
+			try EnergyPct := Energy
+		if !InStr(iniText, "MovespeedFlat=")
+			try MovespeedFlat := Movespeed
+		if !InStr(iniText, "AbilityPctMin=")
+			try AbilityPctMin := AbilityMin
+		if !InStr(iniText, "GatherPctMin=")
+			try GatherPctMin := GatherMin
+		if !InStr(iniText, "GatherFlatMin=")
+			try GatherFlatMin := GatherMin
+		if !InStr(iniText, "ConvertPctMin=")
+			try ConvertPctMin := ConvertMin
+		if !InStr(iniText, "ConvertFlatMin=")
+			try ConvertFlatMin := ConvertMin
+		if !InStr(iniText, "InstantPctMin=")
+			try InstantPctMin := InstantMin
+		if !InStr(iniText, "CritPctMin=")
+			try CritPctMin := CritMin
+		if !InStr(iniText, "AttackPctMin=")
+			try AttackPctMin := AttackMin
+		if !InStr(iniText, "AttackFlatMin=")
+			try AttackFlatMin := AttackMin
+		if !InStr(iniText, "EnergyPctMin=")
+			try EnergyPctMin := EnergyMin
+		if !InStr(iniText, "MovespeedFlatMin=")
+			try MovespeedFlatMin := MovespeedMin
+		for sectionName, sectionDefaults in config.OwnProps() {
+			for keyName, _ in sectionDefaults.OwnProps() {
+				if (IniRead(inipath, sectionName, keyName, "__missing__") = "__missing__")
+					IniWrite(%keyName%, inipath, sectionName, keyName)
+			}
 		}
-		(f:=FileOpen(inipath, "w")).Write(ini), f.Close()
 	}
 	;===Dimensions===
-	w:=500,h:=397
+	w:=640,h:=520
+	beeCols := 7, beeStartX := 12, beeStartY := 50, beeStepX := 58, beeStepY := 38, beeControlW := 45, beeControlH := 36
+	beeMutationBtnW := 12, beeMutationBtnH := 12, beeMutationBtnOffsetX := beeControlW - 13, beeMutationBtnOffsetY := 2
+	switchY := 258, selectAllSwitchX := 216, mutationsSwitchX := 468
+	mutationCols := 3, mutationStartX := 16, mutationStartY := 304, mutationStepX := 206, mutationStepY := 34
+	mutationToggleW := 42, mutationLabelOffsetX := 52, mutationLabelW := 86, mutationBoxOffsetX := 138, mutationBoxW := 54
+	separatorY := 432, extraSettingsY := 442
+	neonPanelX := 430, neonPanelY := 54, neonPanelW := 190, neonPanelH := 196
+	neonButtonX := 448, neonButtonY := 152, neonButtonW := 152, neonButtonH := 30
+	neonToggleX := 448, neonToggleY := 188
 	;===Bee Array===
 	beeArr := ["Bomber", "Brave", "Bumble", "Cool", "Hasty", "Looker", "Rad", "Rascal", "Stubborn", "Bubble", "Bucko", "Commander", "Demo", "Exhausted", "Fire", "Frosty", "Honey", "Rage", "Riley", "Shocked", "Baby", "Carpenter", "Demon", "Diamond", "Lion", "Music", "Ninja", "Shy", "Buoyant", "Fuzzy", "Precise", "Spicy", "Tadpole", "Vector"]
 	mutationsArr := [
-		{name:"Ability", triggers:["rate", "abil", "ity"], full:"AbilityRate"},
-		{name:"Gather", triggers:["gath", "herAm"], full:"GatherAmount"},
-		{name:"Convert", triggers:["convert", "vertAm"], full:"ConvertAmount"},
-		{name:"Instant", triggers:["inst", "antConv"], full:"InstantConversion"},
-		{name:"Crit", triggers:["crit", "chance"], full:"CriticalChance"},
-		{name:"Attack", triggers:["attack", "att", "ack"], full:"Attack"},
-		{name:"Energy", triggers:["energy", "rgy"], full:"Energy"},
-		{name:"Movespeed", triggers:["movespeed", "speed", "move"], full:"MoveSpeed"},
+		{name:"AbilityPct", uiText:"Ability %", promptName:"% Ability Rate", baseName:"Ability", triggers:["rate", "abil", "ity"], rangeMin:1, rangeMax:5, unit:"%"},
+		{name:"GatherPct", uiText:"Gather %", promptName:"% Gather Amount", baseName:"Gather", triggers:["gath", "heram"], rangeMin:10, rangeMax:30, unit:"%"},
+		{name:"GatherFlat", uiText:"Gather +", promptName:"+ Gather Amount", baseName:"Gather", triggers:["gath", "heram"], rangeMin:2, rangeMax:10, unit:""},
+		{name:"ConvertPct", uiText:"Convert %", promptName:"% Convert Amount", baseName:"Convert", triggers:["convert", "vertam"], rangeMin:10, rangeMax:30, unit:"%"},
+		{name:"ConvertFlat", uiText:"Convert +", promptName:"+ Convert Amount", baseName:"Convert", triggers:["convert", "vertam"], rangeMin:20, rangeMax:80, unit:""},
+		{name:"InstantPct", uiText:"Instant %", promptName:"+ Instant Conversion", baseName:"Instant", triggers:["inst", "antconv"], rangeMin:8, rangeMax:20, unit:"%"},
+		{name:"CritPct", uiText:"Critical %", promptName:"+ Critical Chance", baseName:"Crit", triggers:["crit", "chance"], rangeMin:1, rangeMax:3, unit:"%"},
+		{name:"AttackPct", uiText:"Attack %", promptName:"% Attack", baseName:"Attack", triggers:["attack", "att", "ack"], rangeMin:5, rangeMax:20, unit:"%"},
+		{name:"AttackFlat", uiText:"Attack +", promptName:"+ Attack", baseName:"Attack", triggers:["attack", "att", "ack"], rangeMin:1, rangeMax:2, unit:""},
+		{name:"EnergyPct", uiText:"Energy %", promptName:"% Energy", baseName:"Energy", triggers:["energy", "rgy"], rangeMin:10, rangeMax:40, unit:"%"},
+		{name:"MovespeedFlat", uiText:"Move +", promptName:"+ Movement Speed", baseName:"Movespeed", triggers:["movespeed", "speed", "move"], rangeMin:2, rangeMax:6, unit:""}
 	]
 	extrasettings:=[
 		{name:"mythicStop", text: "Stop on mythics"},
 		{name:"giftedStop", text: "Stop on gifteds"}
 	]
 	getConfig()
+	mutationThresholdValues := Map()
+	for _, mutation in mutationsArr
+		mutationThresholdValues[mutation.name] := IniRead(".\settings\mutations.ini", "mutationThresholds", mutation.name "Min", "")
+	LoadBeeMutationOverrides()
+	mutationLogPath := ".\settings\mutation_ocr_log.csv"
+	mutationSampleDir := ".\settings\mutation_ocr_samples"
+	autojellyClickLogPath := ".\settings\autojelly_click_log.txt"
+	autojellyDetectionLogPath := ".\settings\autojelly_detection_log.txt"
+	autojellyDebugDumped := 0
 	(bitmaps := Map()).CaseSense:=0
+	bitmaps["itemmenu"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAACcAAAAuAQAAAACD1z1QAAAAAnRSTlMAAHaTzTgAAAB4SURBVHjanc2hDcJQGAbAex9NQCCQyA6CqGMswiaM0lGACSoQDWn6I5A4zNnDiY32aCPbuoujA1rNUIsggqZRrgmGdJAd+qwN2YdDdEiPXUCgy3lGQJ6I8VK1ZoT4cQBjVa2tUAH/uTHwvZbcMWfClBduVK2i9/YB0wgl4MlLHxIAAAAASUVORK5CYII=")
+	bitmaps["questlog"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAACoAAAAnAQAAAABRJucoAAAAAnRSTlMAAHaTzTgAAACASURBVHjajczBCcJAEEbhl42wuSUVmFjJphRL2dLGEuxAxQIiePCw+MswBRgY+OANMxgUoJG1gZj1Bd0lWeIIkKCrgBqjxzcfjxs4/GcKhiBXVyL7M0WEIZiCJVgDoJPPJUGtcV5ksWMHB6jCWQv0dl46ToxqzJZePHnQw9W4/QAf0C04CGYsYgAAAABJRU5ErkJggg==")
+	bitmaps["beemenu"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAACsAAAAsAQAAAADUI3zVAAAAAnRSTlMAAHaTzTgAAACaSURBVHjadc5BDgIhDAXQT9U4y1m6G24inkyO4lGaOUm9AW7MzMY6HyQxJjaBFwotxdW3UAEjNhCc+/1z+mXGmgCH22Ti/S5bIRoXSMgtmTASBeOFsx6td/lDIgGIJ8Czl6kVRAguGL4mW9NcC8zJUjRvlCXXZH3kxiUYW+sBgewhRPq3exIwEOhYiZHl/nS3HdIBePQBlfvtDUnsNfflK46tAAAAAElFTkSuQmCC")
 	#Include .\nm_image_assets\mutator\bitmaps.ahk
+	#Include .\nm_image_assets\webhook_gui\bitmaps.ahk
 	#include .\nm_image_assets\mutatorgui\bitmaps.ahk
 	#include .\nm_image_assets\offset\bitmaps.ahk
+	#include .\nm_image_assets\inventory\bitmaps.ahk
+	bitmaps["feed"] := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAADwAAAAUAQMAAADrzcxqAAAABlBMVEUAAAD3//lCqWtQAAAAAXRSTlMAQObYZgAAAE1JREFUeNqNzbENwCAMRNHfpYxLSo/ACB4pG8SjMkImIAiwRIe46lX3+QtzAcE5wQ1cHeKQHhw10EwFwISK6YAvvCVg7LBamuM5fRGFBk/MFx8u1mbtAAAAAElFTkSuQmCC")
+	beeGui := 0, beeOverlayControls := Map(), beeOverlayAssetDir := ".\settings\autojelly_bee_cache"
+	beeMutationGui := 0, beeMutationPopupBee := "", beeMutationOverrides := Map(), beeMutationEditBrush := 0, beeMutationEditMap := Map()
 	startGui() {
 		global
-		local i,j,y,hBM,x
+		local i, j, hBM, x, row, col
 		(mgui := Gui("+E" (0x00080000) " +OwnDialogs -Caption -DPIScale", "Auto-Jelly")).OnEvent("Close", ExitApp)
 		mgui.Show()
 		for i, j in [
 			{name:"move", options:"x0 y0 w" w " h36"},
-			{name:"selectall", options:"x" w-330 " y220 w40 h18"},
-			{name:"mutations", options:"x" w-170 " y220 w40 h18"},
-			{name:"close", options:"x" w-40 " y5 w28 h28"},
-			{name:"roll", options:"x10 y" h-42 " w" w-56 " h30"},
-			{name:"help", options:"x" w-40 " y" h-42 " w28 h28"}
+			{name:"selectall", options:"x" selectAllSwitchX " y" switchY " w40 h18"},
+			{name:"mutations", options:"x" mutationsSwitchX " y" switchY " w40 h18"},
+			{name:"setNeonBee", options:"x" neonButtonX " y" neonButtonY " w" neonButtonW " h" neonButtonH},
+			{name:"autoNeon", options:"x" neonToggleX " y" neonToggleY " w170 h20"},
+			{name:"close", options:"x" w-42 " y5 w30 h30"},
+			{name:"roll", options:"x14 y" h-48 " w" w-68 " h32"},
+			{name:"help", options:"x" w-44 " y" h-48 " w30 h30"}
 		]
-			mgui.AddText("v" j.name " " j.options)
-		for i, j in beeArr {
-			y := (A_Index-1)//8*1
-			mgui.AddText("v" j " x" 10+mod(A_Index-1,8)*60 " y" 50+y*40 " w45 h36")
+			mgui.AddText("BackgroundTrans v" j.name " " j.options)
+		for _, beeName in beeArr {
+			row := (A_Index-1)//beeCols
+			x := beeStartX + Mod(A_Index-1, beeCols) * beeStepX
+			y := beeStartY + row * beeStepY
+			mgui.AddText("v" beeName " x" x " y" y " w" beeControlW " h" beeControlH)
+			mgui.AddText("v" beeName "MutBtn x" x+beeMutationBtnOffsetX " y" y+beeMutationBtnOffsetY " w" beeMutationBtnW " h" beeMutationBtnH)
 		}
 		for i, j in mutationsArr {
-			y := (A_Index-1)//4*1
-			mgui.AddText("v" j.name " x" 10+mod(A_Index-1,4)*120 " y" 260+y*25 " w40 h18")
+			col := Mod(i-1, mutationCols), row := (i-1)//mutationCols
+			x := mutationStartX + col*mutationStepX
+			mgui.AddText("BackgroundTrans v" j.name " x" x " y" mutationStartY+row*mutationStepY " w" mutationToggleW " h20")
+			mgui.AddText("BackgroundTrans v" j.name "MinBox x" x+mutationBoxOffsetX " y" mutationStartY-2+row*mutationStepY " w" mutationBoxW " h24")
 		}
 		for i, j in extrasettings {
-			x := 10 + (w-12)/extrasettings.length * (i-1), y:=(316+h-42)//2-10
-			mgui.AddText("v" j.name " x" x " y" y " w40 h18")
+			x := 16 + (w-32)/extrasettings.length * (i-1)
+			mgui.AddText("BackgroundTrans v" j.name " x" x " y" extraSettingsY " w40 h18")
 		}
 		hBM := CreateDIBSection(w, h)
 		hDC := CreateCompatibleDC()
@@ -9274,7 +9399,10 @@ blc_mutations(*) {
 	startGUI()
 	OnMessage(0x201, WM_LBUTTONDOWN)
 	OnMessage(0x200, WM_MOUSEMOVE)
+	OnMessage(0x133, WM_CTLCOLOREDIT)
 	DrawGUI() {
+		global
+		isSelectAll := IsSelectAllEnabled()
 		Gdip_GraphicsClear(G)
 		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid(0xFF131416), 2, 2, w-4, h-4, 20), Gdip_DeleteBrush(brush)
 		region := Gdip_GetClipRegion(G)
@@ -9284,56 +9412,103 @@ blc_mutations(*) {
 		Gdip_FillRectangle(G, brush, 2, 20, w-4, 14)
 		Gdip_DeleteBrush(brush), Gdip_DeleteRegion(region)
 		Gdip_TextToGraphics(G, "Auto-Jelly", "s20 x20 y5 w460 Near vCenter c" (brush := Gdip_BrushCreateSolid("0xFF131416")), "Comic Sans MS", 460, 30), Gdip_DeleteBrush(brush)
-		Gdip_DrawImage(G, bitmaps["close"], w-40, 5, 28, 28)
-		for i, j in beeArr {
-			;bitmaps are w45 h36
-			y := (A_Index-1)//8
-			bm := hovercontrol = j && (%j% || SelectAll) ? j "bghover" : %j% || SelectAll ? j "bg" : hovercontrol = j ? j "hover" : j
-			Gdip_DrawImage(G, bitmaps[bm], 10+mod(A_Index-1,8)*60, 50+y*40, 45, 36)
+		Gdip_DrawImage(G, bitmaps["close"], w-42, 5, 30, 30)
+		Gdip_TextToGraphics(G, "Select Bees", "s12 x16 y236 c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", 140, 16), Gdip_DeleteBrush(brush)
+		beeSelectionCount := CountSelectedBees()
+		summaryText := GetBeeSelectionSummary(beeSelectionCount)
+		summaryColor := beeSelectionCount ? "0xFF8ED18A" : "0xFFB7B9BD"
+		Gdip_TextToGraphics(G, summaryText, "s11 x112 y236 c" (brush := Gdip_BrushCreateSolid(summaryColor)), "Comic Sans MS", 220, 16), Gdip_DeleteBrush(brush)
+		neonStatusText := HasSavedNeonBeeTarget() ? "Slot: Set" : "Slot: Not Set"
+		neonStatusColor := HasSavedNeonBeeTarget() ? "0xFF8ED18A" : "0xFFFFA0A0"
+		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF1A1C22"), neonPanelX, neonPanelY, neonPanelW, neonPanelH, 14), Gdip_DeleteBrush(brush)
+		Gdip_DrawRoundedRectanglePath(G, pen := Gdip_CreatePen("0x40FEC6DF", 2), neonPanelX, neonPanelY, neonPanelW, neonPanelH, 14), Gdip_DeletePen(pen)
+		Gdip_TextToGraphics(G, "Neon Setup", "s13 x" neonPanelX+14 " y" neonPanelY+12 " c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", 140, 18), Gdip_DeleteBrush(brush)
+		Gdip_TextToGraphics(G, neonStatusText, "s11 x" neonPanelX+14 " y" neonPanelY+46 " c" (brush := Gdip_BrushCreateSolid(neonStatusColor)), "Comic Sans MS", neonPanelW-28, 16), Gdip_DeleteBrush(brush)
+		Gdip_TextToGraphics(G, "Feeds 1 Neonberry and refreshes on the timer.", "s9 x" neonPanelX+14 " y" neonPanelY+68 " c" (brush := Gdip_BrushCreateSolid("0xFFB7B9BD")), "Comic Sans MS", neonPanelW-28, 34), Gdip_DeleteBrush(brush)
+		for _, beeName in beeArr {
+			row := (A_Index-1)//beeCols
+			x := beeStartX + Mod(A_Index-1, beeCols) * beeStepX
+			y := beeStartY + row * beeStepY
+			bm := hovercontrol = beeName && IsBeeSelected(beeName) ? beeName "bghover"
+				: IsBeeSelected(beeName) ? beeName "bg"
+				: hovercontrol = beeName ? beeName "hover"
+				: beeName
+			Gdip_DrawImage(G, bitmaps[bm], x, y, beeControlW, beeControlH)
+			btnX := x + beeMutationBtnOffsetX
+			btnY := y + beeMutationBtnOffsetY
+			btnFill := !mutations ? "0xFF2A2D34"
+				: hovercontrol = (beeName . "MutBtn") ? "0x40FEC6DF"
+				: HasBeeMutationOverride(beeName) ? "0xFF8ED18A"
+				: "0xFF262832"
+			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid(btnFill), btnX, btnY, beeMutationBtnW, beeMutationBtnH, 3), Gdip_DeleteBrush(brush)
+			Gdip_DrawRoundedRectanglePath(G, pen:=Gdip_CreatePen("0xFFFEC6DF", 1), btnX, btnY, beeMutationBtnW, beeMutationBtnH, 3), Gdip_DeletePen(pen)
+			Gdip_TextToGraphics(G, "M", "s8 x" btnX " y" btnY-1 " Center vCenter c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", beeMutationBtnW, beeMutationBtnH+2), Gdip_DeleteBrush(brush)
 		}
 		;===Switches===
-		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), w-330, 220, 40, 18, 9), Gdip_DeleteBrush(brush)
-		Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), selectAll ? w-310 : w-332, 218, 22, 22)
-		Gdip_TextToGraphics(G, "Select All Bees", "s14 x" w-284 " y220 Near vCenter c" brush, "Comic Sans MS",, 20), Gdip_DeleteBrush(brush)
-		if !SelectAll {
-			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), w-330, 220, 18, 18), Gdip_DeleteBrush(brush)
-			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[w-325, 225], [w-317, 233]])
-			Gdip_DrawLines(G, Pen								  , [[w-325, 233], [w-317, 225]]), Gdip_DeletePen(Pen)
+		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), selectAllSwitchX, switchY, 40, 18, 9), Gdip_DeleteBrush(brush)
+		Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), isSelectAll ? selectAllSwitchX+20 : selectAllSwitchX-2, switchY-2, 22, 22)
+		Gdip_TextToGraphics(G, "Select All Bees", "s14 x" selectAllSwitchX+46 " y" switchY " Near vCenter c" brush, "Comic Sans MS", 170, 20), Gdip_DeleteBrush(brush)
+		if !isSelectAll {
+			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), selectAllSwitchX, switchY, 18, 18), Gdip_DeleteBrush(brush)
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[selectAllSwitchX+5, switchY+5], [selectAllSwitchX+13, switchY+13]])
+			Gdip_DrawLines(G, Pen								  , [[selectAllSwitchX+5, switchY+13], [selectAllSwitchX+13, switchY+5]]), Gdip_DeletePen(Pen)
 		}
 		else
-			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[w-303, 229], [w-300, 232], [w-295, 225]]), Gdip_DeletePen(Pen)
-		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), w-170, 220, 40, 18, 9), Gdip_DeleteBrush(brush)
-		Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), mutations ? w-150 : w-172, 218, 22, 22)
-		Gdip_TextToGraphics(G, "Mutations", "s14 x" w-124 " y220 Near vCenter c" (brush), "Comic Sans MS",, 20), Gdip_DeleteBrush(brush)
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[selectAllSwitchX+27, switchY+9], [selectAllSwitchX+30, switchY+12], [selectAllSwitchX+35, switchY+5]]), Gdip_DeletePen(Pen)
+		Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), mutationsSwitchX, switchY, 40, 18, 9), Gdip_DeleteBrush(brush)
+		Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), mutations ? mutationsSwitchX+20 : mutationsSwitchX-2, switchY-2, 22, 22)
+		Gdip_TextToGraphics(G, "Mutations", "s14 x" mutationsSwitchX+46 " y" switchY " Near vCenter c" (brush), "Comic Sans MS", 120, 20), Gdip_DeleteBrush(brush)
 		if !mutations {
-			Gdip_FillEllipse(G, brush:= Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), w-170, 220, 18, 18), Gdip_DeleteBrush(brush)
-			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[w-165, 225], [w-157, 233]])
-			Gdip_DrawLines(G, Pen								  , [[w-165, 233], [w-157, 225]]), Gdip_DeletePen(Pen)
+			Gdip_FillEllipse(G, brush:= Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), mutationsSwitchX, switchY, 18, 18), Gdip_DeleteBrush(brush)
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[mutationsSwitchX+5, switchY+5], [mutationsSwitchX+13, switchY+13]])
+			Gdip_DrawLines(G, Pen								  , [[mutationsSwitchX+5, switchY+13], [mutationsSwitchX+13, switchY+5]]), Gdip_DeletePen(Pen)
 		}
 		else
-			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[w-143, 229], [w-140, 232], [w-135, 225]]), Gdip_DeletePen(Pen)
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[mutationsSwitchX+27, switchY+9], [mutationsSwitchX+30, switchY+12], [mutationsSwitchX+35, switchY+5]]), Gdip_DeletePen(Pen)
+		Gdip_TextToGraphics(G, "Click the number boxes to set minimum values", "s11 x16 y278 c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", 320, 16), Gdip_DeleteBrush(brush)
 		For i, j in mutationsArr {
-			y := (A_Index-1)//4
-			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), 10+mod(A_Index-1,4)*120, 260+y*25, 40, 18, 9), Gdip_DeleteBrush(brush)
-			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), (%j.name% ? 3.2 : 1) * 8+mod(A_Index-1,4)*120, 258+y*25, 22, 22), Gdip_DeleteBrush(brush)
-			Gdip_TextToGraphics(G, j.name, "s13 x" 56+mod(A_Index-1,4)*120 " y" 260+y*25 " vCenter c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", 100, 20), Gdip_DeleteBrush(brush)
+			col := Mod(i-1, mutationCols), row := (i-1)//mutationCols
+			x := mutationStartX + col*mutationStepX, y := mutationStartY + row*mutationStepY
+			boxX := x+mutationBoxOffsetX, boxY := y-2
+			thresholdValue := mutationThresholdValues.Get(j.name, "")
+			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid("0xFF" . 13*2 . 14*2 . 16*2), x, y, mutationToggleW, 20, 10), Gdip_DeleteBrush(brush)
+			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), (%j.name% ? x+22 : x-2), y-2, 24, 24), Gdip_DeleteBrush(brush)
+			Gdip_TextToGraphics(G, j.uiText, "s13 x" x+mutationLabelOffsetX " y" y " vCenter c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", mutationLabelW, 22), Gdip_DeleteBrush(brush)
+			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid((hovercontrol = j.name "MinBox") ? "0x50FEC6DF" : "0xFF262832"), boxX, boxY, mutationBoxW, 24, 7), Gdip_DeleteBrush(brush)
+			Gdip_DrawRoundedRectanglePath(G, pen := Gdip_CreatePen("0xFFFEC6DF", 1), boxX, boxY, mutationBoxW, 24, 7), Gdip_DeletePen(pen)
+			Gdip_TextToGraphics(G, (thresholdValue != "" ? thresholdValue : "-"), "s12 x" boxX " y" boxY " Center vCenter c" (brush := Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", mutationBoxW, 24), Gdip_DeleteBrush(brush)
 			if !%j.name% {
-				Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), x:=10+mod(A_Index-1,4)*120, yp:=258+y*25+2, 18, 18), Gdip_DeleteBrush(brush)
-				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[x+5, yp+5 ], [x+13, yp+13]])
-				Gdip_DrawLines(G, Pen								  , [[x+5, yp+13], [x+13, yp+5 ]]), Gdip_DeletePen(Pen)
+				Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), x, y, 20, 20), Gdip_DeleteBrush(brush)
+				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[x+6, y+6], [x+14, y+14]])
+				Gdip_DrawLines(G, Pen								  , [[x+6, y+14], [x+14, y+6]]), Gdip_DeletePen(Pen)
 			}
 			else
-				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[x:=32.6+mod(A_Index-1,4)*120, yp:=269+y*25], [x+3, yp+3], [x+8, yp-4]]), Gdip_DeletePen(Pen)
+				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[x+30, y+9], [x+33, y+12], [x+38, y+5]]), Gdip_DeletePen(Pen)
 		}
 		if !mutations
-			Gdip_FillRectangle(G, brush:=Gdip_BrushCreateSolid("0x70131416"), 9, 255, w-18, 52), Gdip_DeleteBrush(brush)
-		Gdip_DrawLine(G, Pen:=Gdip_CreatePen("0xFFFEC6DF", 2), 10, 315, w-12, 315), Gdip_DeletePen(Pen)
-		;two more switches for "stop on mythic" and "stop on gifted"
+			Gdip_FillRectangle(G, brush:=Gdip_BrushCreateSolid("0x70131416"), 12, mutationStartY-6, w-24, 132), Gdip_DeleteBrush(brush)
+		if (hovercontrol = "setNeonBee")
+			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0x30FEC6DF"), neonButtonX, neonButtonY, neonButtonW, neonButtonH, 10), Gdip_DeleteBrush(brush)
+		Gdip_DrawRoundedRectanglePath(G, pen:=Gdip_CreatePen("0xFFFEC6DF", 3), neonButtonX, neonButtonY, neonButtonW, neonButtonH, 10), Gdip_DeletePen(pen)
+		Gdip_TextToGraphics(G, "Set Slot", "x" neonButtonX " y" neonButtonY+1 " Center vCenter s13 c" (brush:=Gdip_BrushCreateSolid("0xFFFEC6DF")), "Comic Sans MS", neonButtonW, neonButtonH), Gdip_DeleteBrush(brush)
+		Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), neonToggleX, neonToggleY, 40, 18, 9), Gdip_DeleteBrush(brush)
+		Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), autoNeon ? neonToggleX+18 : neonToggleX-2, neonToggleY-2, 22, 22)
+		Gdip_TextToGraphics(G, "Auto-Neon", "s14 x" neonToggleX+48 " y" neonToggleY " vCenter c" brush, "Comic Sans MS", 126, 20), Gdip_DeleteBrush(brush)
+		if !autoNeon {
+			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), neonToggleX, neonToggleY, 18, 18), Gdip_DeleteBrush(brush)
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[neonToggleX+5, neonToggleY+5], [neonToggleX+13, neonToggleY+13]])
+			Gdip_DrawLines(G, Pen, [[neonToggleX+5, neonToggleY+13], [neonToggleX+13, neonToggleY+5]]), Gdip_DeletePen(Pen)
+		}
+		else
+			Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[neonToggleX+25, neonToggleY+9], [neonToggleX+28, neonToggleY+12], [neonToggleX+33, neonToggleY+5]]), Gdip_DeletePen(Pen)
+		Gdip_TextToGraphics(G, "Made by: @definetlynotray", "s9 x438 y410 c" (brush := Gdip_BrushCreateSolid("0xFF8E939A")), "Comic Sans MS", 180, 16), Gdip_DeleteBrush(brush)
+		Gdip_DrawLine(G, Pen:=Gdip_CreatePen("0xFFFEC6DF", 2), 14, separatorY, w-16, separatorY), Gdip_DeletePen(Pen)
+		; two switches for "stop on mythic" and "stop on gifted"
 		for i, j in extrasettings {
-			x := 10 + (tw:=(w-12)/extrasettings.length) * (i-1), y:=(316+h-42)//2-10
+			x := 16 + (tw:=(w-32)/extrasettings.length) * (i-1), y:=extraSettingsY
 			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), x, y, 40, 18, 9), Gdip_DeleteBrush(brush), Gdip_DeleteBrush(brush)
 			Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFFFEC6DF"), %j.name% ? x+18 : x-2, y-2, 22, 22)
-			Gdip_TextToGraphics(G, j.text, "s14 x" x+46 " y" y " vCenter c" brush, "Comic Sans MS", tw,20), Gdip_DeleteBrush(brush)
+			Gdip_TextToGraphics(G, j.text, "s14 x" x+48 " y" y " vCenter c" brush, "Comic Sans MS", tw-12, 20), Gdip_DeleteBrush(brush)
 			if !%j.name% {
 				Gdip_FillEllipse(G, brush:=Gdip_BrushCreateSolid("0xFF262832"), x, y, 18, 18), Gdip_deleteBrush(brush)
 				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFFCC0000", 2), [[x+5, y+5 ], [x+13, y+13]])
@@ -9343,25 +9518,1042 @@ blc_mutations(*) {
 				Gdip_DrawLines(G, Pen:=Gdip_CreatePen("0xFF006600", 2), [[x+25, y+9], [x+28, y+12], [x+33, y+5]]), Gdip_DeletePen(Pen)
 		}
 		if hovercontrol = "roll"
-			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0x30FEC6DF"), 10, h-42, w-56, 30, 10), Gdip_DeleteBrush(brush)
+			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0x30FEC6DF"), 14, h-48, w-68, 32, 10), Gdip_DeleteBrush(brush)
 		if hovercontrol = "help"
-			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0x30FEC6DF"), w-40, h-42, 30, 30, 10), Gdip_DeleteBrush(brush)
-		Gdip_TextToGraphics(G, "Roll!", "x10 y" h-40 " Center vCenter s15 c" (brush:=Gdip_BrushCreateSolid("0xFFFEC6DF")),"Comic Sans MS",w-56, 28)
-		Gdip_TextToGraphics(G, "?", "x" w-39 " y" h-40 " Center vCenter s15 c" brush,"Comic Sans MS",30, 28), Gdip_DeleteBrush(brush)
-		Gdip_DrawRoundedRectanglePath(G, pen:=Gdip_CreatePen("0xFFFEC6DF", 4), 10, h-42, w-56, 30, 10)
-		Gdip_DrawRoundedRectanglePath(G, pen, w-40, h-42, 30, 30, 10), Gdip_DeletePen(pen)
+			Gdip_FillRoundedRectanglePath(G, brush:=Gdip_BrushCreateSolid("0x30FEC6DF"), w-44, h-48, 30, 30, 10), Gdip_DeleteBrush(brush)
+		Gdip_TextToGraphics(G, "Roll!", "x14 y" h-46 " Center vCenter s15 c" (brush:=Gdip_BrushCreateSolid("0xFFFEC6DF")),"Comic Sans MS",w-68, 30)
+		Gdip_TextToGraphics(G, "?", "x" w-43 " y" h-46 " Center vCenter s15 c" brush,"Comic Sans MS",30, 30), Gdip_DeleteBrush(brush)
+		Gdip_DrawRoundedRectanglePath(G, pen:=Gdip_CreatePen("0xFFFEC6DF", 4), 14, h-48, w-68, 32, 10)
+		Gdip_DrawRoundedRectanglePath(G, pen, w-44, h-48, 30, 30, 10), Gdip_DeletePen(pen)
+		if !autojellyDebugDumped
+			DumpAutoJellyUIDebug()
 		update()
 	}
-	WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
-		global hovercontrol, mutations, Bomber, Brave, Bumble, Cool, Hasty, Looker, Rad, Rascal
-		, Stubborn, Bubble, Bucko, Commander, Demo, Exhausted, Fire, Frosty, Honey, Rage
-		, Riley, Shocked, Baby, Carpenter, Demon, Diamond, Lion, Music, Ninja, Shy, Buoyant
-		, Fuzzy, Precise, Spicy, Tadpole, Vector, SelectAll, Ability, Gather, Convert, Energy
-		, Movespeed, Crit, Instant, Attack, mythicStop, giftedStop
-		MouseGetPos(,,,&ctrl,2)
-		if !ctrl
+	StartBeeOverlay() {
+		return
+	}
+	LogAutoJellyClick(event, details := "") {
+		global autojellyClickLogPath
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		line := "[" FormatTime(, "yyyy-MM-dd HH:mm:ss") "] " event
+		if (details != "")
+			line .= " | " details
+		FileAppend(line . Chr(13) . Chr(10), autojellyClickLogPath, "UTF-8")
+	}
+	LogAutoJellyDetection(beeName, passNum := 1, ocrText := "", ocrTarget := "", ocrHit := 0, bitmapHit := 0, exactHit := 0, score := 0) {
+		global autojellyDetectionLogPath
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		ts := FormatTime(, "yyyy-MM-dd HH:mm:ss")
+		snippet := StrReplace(ocrText, Chr(13), " ")
+		snippet := StrReplace(snippet, Chr(10), " ")
+		snippet := Trim(snippet)
+		if (StrLen(snippet) > 180)
+			snippet := SubStr(snippet, 1, 180) "..."
+		line := "[" ts "] pass=" passNum " bee=" beeName
+		line .= " | score=" score
+		line .= " | ocrHit=" ocrHit " ocrTarget=" Chr(34) ocrTarget Chr(34) " ocrText=" Chr(34) snippet Chr(34)
+		line .= " | bitmapHit=" bitmapHit " | exactHit=" exactHit
+		FileAppend(line . Chr(13) . Chr(10), autojellyDetectionLogPath, "UTF-8")
+	}
+	ParseAutoJellyBeeName(ocrText) {
+		ocrText := StrLower(ocrText)
+		if RegExMatch(ocrText, "i)into a[^a-z]*([a-z]+)\s+bee", &m)
+			return m[1]
+		return ""
+	}
+	HasSavedNeonBeeTarget() {
+		try return (IniRead(".\settings\mutations.ini", "neon", "beeX", "") != "") && (IniRead(".\settings\mutations.ini", "neon", "beeY", "") != "")
+		return 0
+	}
+	SaveNeonBeeTarget(screenX, screenY, hwndRoblox := 0) {
+		global windowX, windowY
+		if !hwndRoblox
+			hwndRoblox := GetRobloxHWND()
+		if !hwndRoblox
+			return 0
+		GetRobloxClientPos(hwndRoblox)
+		relX := Round(screenX - windowX)
+		relY := Round(screenY - windowY)
+		IniWrite(relX, ".\settings\mutations.ini", "neon", "beeX")
+		IniWrite(relY, ".\settings\mutations.ini", "neon", "beeY")
+		IniWrite(0, ".\settings\mutations.ini", "neon", "lastFed")
+		IniWrite(0, ".\settings\mutations.ini", "neon", "expiresAt")
+		return 1
+	}
+	GetSavedNeonBeeScreenPos(&screenX, &screenY, hwndRoblox := 0) {
+		global windowX, windowY, windowWidth, windowHeight
+		if !hwndRoblox
+			hwndRoblox := GetRobloxHWND()
+		if !hwndRoblox
+			return 0
+		relX := IniRead(".\settings\mutations.ini", "neon", "beeX", "")
+		relY := IniRead(".\settings\mutations.ini", "neon", "beeY", "")
+		if (relX = "" || relY = "")
+			return 0
+		GetRobloxClientPos(hwndRoblox)
+		screenX := windowX + (relX + 0)
+		screenY := windowY + (relY + 0)
+		return (screenX >= windowX && screenY >= windowY && screenX <= windowX + windowWidth && screenY <= windowY + windowHeight)
+	}
+	CaptureAutoNeonBeeTarget() {
+		local hwndRoblox, screenX := 0, screenY := 0, StatusBar := 0, hbm := 0, hdc := 0, obm := 0, G := 0
+		if !(hwndRoblox := GetRobloxHWND()) || !(GetRobloxClientPos(hwndRoblox), windowWidth)
+			return MsgBox("You must have Bee Swarm Simulator open to set the Neon Bee target.", "Auto-Jelly", 0x40030)
+		ActivateRoblox()
+		if (MsgBox("After dismissing this message, left click the bee slot you want Auto-Neon to target.", "Set Slot", 0x40001) = "Cancel")
 			return
-		switch mgui[ctrl].name, 0 {
+		StatusBar := Gui("-Caption +E0x80000 +AlwaysOnTop +ToolWindow -DPIScale")
+		StatusBar.Show("NA")
+		hbm := CreateDIBSection(windowWidth, windowHeight), hdc := CreateCompatibleDC(), obm := SelectObject(hdc, hbm)
+		G := Gdip_GraphicsFromHDC(hdc), Gdip_SetSmoothingMode(G, 2), Gdip_SetInterpolationMode(G, 2)
+		Gdip_FillRectangle(G, pBrush := Gdip_BrushCreateSolid(0x60000000), -1, -1, windowWidth+1, windowHeight+1), Gdip_DeleteBrush(pBrush)
+		UpdateLayeredWindow(StatusBar.Hwnd, hdc, windowX, windowY, windowWidth, windowHeight)
+		KeyWait "LButton", "D"
+		MouseGetPos(&screenX, &screenY)
+		try StatusBar.Destroy()
+		if G
+			Gdip_DeleteGraphics(G)
+		if hdc {
+			if obm
+				SelectObject(hdc, obm)
+			DeleteDC(hdc)
+		}
+		if hbm
+			DeleteObject(hbm)
+		if !SaveNeonBeeTarget(screenX, screenY, hwndRoblox)
+			return MsgBox("Failed to save the Neon Bee target.", "Auto-Jelly", 0x40030)
+		MsgBox "Saved Neon Bee target.", "Auto-Jelly", 0x40040
+	}
+	AutoNeonBee(hwndRoblox, yOffset, force := 0) {
+		static neonExpiresAt := 0
+		global windowX, windowY, windowWidth, windowHeight
+		if !force {
+			expiresAt := Max(neonExpiresAt, IniRead(".\settings\mutations.ini", "neon", "expiresAt", 0) + 0)
+			if (expiresAt && nowUnix() < expiresAt)
+				return 1
+		}
+		if !GetSavedNeonBeeScreenPos(&beeX, &beeY, hwndRoblox) {
+			AutoJellySetStatus("Error", "Auto-Neon target not set")
+			MsgBox "Auto-Neon is enabled, but no Neon Bee target is set.``nUse the Set Neon Bee button first.", "Auto-Jelly", 0x40030
+			return 0
+		}
+		if ((pos := nm_InventorySearch("neonberry", "down", , , , 40)) = 0) {
+			AutoJellySetStatus("Error", "Auto-Neon ran out of Neonberries")
+			MsgBox "You ran out of Neonberries!", "Auto-Jelly", 0x40010
+			return 0
+		}
+		ActivateRoblox()
+		GetRobloxClientPos(hwndRoblox)
+		SendEvent "{Click " windowX+pos[1] " " windowY+pos[2] " 0}"
+		Send "{Click Down}"
+		Sleep 100
+		SendEvent "{Click " beeX " " beeY " 0}"
+		Sleep 100
+		Send "{Click Up}"
+		Loop 10 {
+			Sleep 100
+			pBMScreen := Gdip_BitmapFromScreen(windowX+(54*windowWidth)//100-300 "|" windowY+yOffset+(46*windowHeight)//100-59 "|250|100")
+			if (nm_OCRFindWord(pBMScreen, "Feed", &feedPos) = 1) {
+				Gdip_DisposeImage(pBMScreen)
+				SendEvent "{Click " windowX+(54*windowWidth)//100-300+SubStr(feedPos, 1, InStr(feedPos, ",")-1)+140 " " windowY+yOffset+(46*windowHeight)//100-59+SubStr(feedPos, InStr(feedPos, ",")+1)+5 "}"
+				Sleep 100
+				Loop StrLen("1")
+				{
+					SendEvent "{Text}" SubStr("1", A_Index, 1)
+					Sleep 100
+				}
+				Sleep 100
+				SendEvent "{Click " windowX+(54*windowWidth)//100-300+SubStr(feedPos, 1, InStr(feedPos, ",")-1) " " windowY+yOffset+(46*windowHeight)//100-59+SubStr(feedPos, InStr(feedPos, ",")+1) "}"
+				fedAt := nowUnix()
+				neonExpiresAt := fedAt + 640
+				IniWrite(fedAt, ".\settings\mutations.ini", "neon", "lastFed")
+				IniWrite(neonExpiresAt, ".\settings\mutations.ini", "neon", "expiresAt")
+				Sleep 750
+				return 1
+			}
+			Gdip_DisposeImage(pBMScreen)
+		}
+		AutoJellySetStatus("Error", "Failed to feed a Neonberry to the saved bee slot")
+		MsgBox "Failed to feed a Neonberry to the saved bee slot.", "Auto-Jelly", 0x40030
+		return 0
+	}
+	GetSelectedBeesForLog() {
+		global beeArr
+		selected := ""
+		for _, beeName in beeArr {
+			if !IsBeeSelected(beeName)
+				continue
+			selected .= (selected = "" ? "" : ",") beeName
+		}
+		return selected = "" ? "<none>" : selected
+	}
+	EnsureBeeOverlayAsset(beeName, bm) {
+		global bitmaps, beeOverlayAssetDir
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		if !DirExist(beeOverlayAssetDir)
+			DirCreate(beeOverlayAssetDir)
+		filePath := beeOverlayAssetDir "\" beeName "_" bm ".png"
+		if !FileExist(filePath)
+			Gdip_SaveBitmapToFile(bitmaps[bm], filePath)
+		return filePath
+	}
+	EnsureBeeSelectedAsset(beeName) {
+		global bitmaps, beeOverlayAssetDir, beeControlW, beeControlH
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		if !DirExist(beeOverlayAssetDir)
+			DirCreate(beeOverlayAssetDir)
+		filePath := beeOverlayAssetDir "\" beeName "_selected_v4.png"
+		if !FileExist(filePath) {
+			pBitmap := Gdip_CreateBitmap(beeControlW, beeControlH)
+			G := Gdip_GraphicsFromImage(pBitmap)
+			Gdip_SetSmoothingMode(G, 4)
+			Gdip_DrawImage(G, bitmaps[beeName], 0, 0, beeControlW, beeControlH)
+			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid(0x18FEC6DF), 1, 1, beeControlW-2, beeControlH-2, 8), Gdip_DeleteBrush(brush)
+			Gdip_DrawRoundedRectanglePath(G, pen := Gdip_CreatePen("0xFFFEC6DF", 3), 1, 1, beeControlW-3, beeControlH-3, 8), Gdip_DeletePen(pen)
+			Gdip_FillRoundedRectanglePath(G, brush := Gdip_BrushCreateSolid(0xFF4BB543), beeControlW-16, beeControlH-16, 14, 14, 4), Gdip_DeleteBrush(brush)
+			Gdip_DrawImage(G, bitmaps["check"], beeControlW-15, beeControlH-15, 12, 12)
+			Gdip_SaveBitmapToFile(pBitmap, filePath)
+			Gdip_DeleteGraphics(G)
+			Gdip_DisposeImage(pBitmap)
+		}
+		return filePath
+	}
+	UpdateBeeOverlayPosition(forceShow := 0) {
+		global mgui, beeGui, beeArr, beeCols, beeStartX, beeStartY, beeStepX, beeStepY, beeControlW, beeControlH
+		if !IsObject(beeGui)
+			return
+		if !DllCall("IsWindowVisible", "ptr", mgui.Hwnd) {
+			beeGui.Hide()
+			return
+		}
+		rows := Ceil(beeArr.Length / beeCols)
+		overlayW := (beeCols - 1) * beeStepX + beeControlW
+		overlayH := (rows - 1) * beeStepY + beeControlH
+		WinGetPos(&guiX, &guiY,,, "ahk_id " mgui.Hwnd)
+		overlayX := guiX + beeStartX
+		overlayY := guiY + beeStartY
+		if forceShow || !DllCall("IsWindowVisible", "ptr", beeGui.Hwnd)
+			beeGui.Show("NA x" overlayX " y" overlayY " w" overlayW " h" overlayH)
+		else
+			WinMove(overlayX, overlayY, overlayW, overlayH, "ahk_id " beeGui.Hwnd)
+		UpdateBeeOverlaySelection()
+	}
+	UpdateBeeOverlaySelection() {
+		return
+	}
+	IsSelectAllEnabled() {
+		try return IniRead(".\settings\mutations.ini", "bees", "selectAll", 0) + 0
+		return 0
+	}
+	IsBeeSelected(beeName) {
+		if IsSelectAllEnabled()
+			return 1
+		try return IniRead(".\settings\mutations.ini", "bees", beeName, 0) + 0
+		return 0
+	}
+	CountSelectedBees() {
+		global beeArr
+		if IsSelectAllEnabled()
+			return beeArr.Length
+		selectedCount := 0
+		for _, beeName in beeArr
+			selectedCount += IsBeeSelected(beeName)
+		return selectedCount
+	}
+	GetBeeSelectionSummary(selectedCount := "") {
+		global beeArr
+		if (selectedCount = "")
+			selectedCount := CountSelectedBees()
+		if IsSelectAllEnabled()
+			return "All " beeArr.Length " bees selected"
+		if !selectedCount
+			return "No bees selected"
+		return selectedCount " bee" (selectedCount = 1 ? "" : "s") " selected"
+	}
+	BeeOverlayTick() {
+		global beeGui, beeArr, hovercontrol
+		static hoverStartTick := 0
+		if !IsObject(beeGui)
+			return
+		UpdateBeeOverlayPosition()
+		MouseGetPos(&mouseX, &mouseY)
+		hoverBee := GetBeeAtMouse(mouseX, mouseY)
+		if (hoverBee != "") {
+			ReplaceSystemCursors("IDC_HAND")
+			if (hovercontrol != hoverBee) {
+				hovercontrol := hoverBee
+				hoverStartTick := A_TickCount
+				ToolTip()
+			}
+			if (A_TickCount - hoverStartTick > 700)
+				ToolTip(hoverBee " Bee")
+			return
+		}
+		if beeArr.Includes(hovercontrol) {
+			hovercontrol := ""
+			ToolTip()
+			ReplaceSystemCursors()
+		}
+	}
+	DumpAutoJellyUIDebug() {
+		global autojellyDebugDumped, hBM, beeArr, bitmaps, beeCols, beeStartX, beeStartY, beeStepX, beeStepY, beeControlW, beeControlH
+		, mutationStartX, mutationStartY, mutationCols, mutationStepX
+		autojellyDebugDumped := 1
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		missingKeys := ""
+		for _, beeName in beeArr {
+			for _, suffix in ["", "bg", "hover", "bghover"] {
+				key := beeName suffix
+				if !bitmaps.Has(key)
+					missingKeys .= (missingKeys = "" ? "" : ", ") key
+			}
+		}
+		newline := Chr(13) . Chr(10)
+		info := "beeCols=" beeCols newline
+			. "beeStartX=" beeStartX newline
+			. "beeStartY=" beeStartY newline
+			. "beeStepX=" beeStepX newline
+			. "beeStepY=" beeStepY newline
+			. "beeControlW=" beeControlW newline
+			. "beeControlH=" beeControlH newline
+			. "mutationStartX=" mutationStartX newline
+			. "mutationStartY=" mutationStartY newline
+			. "mutationCols=" mutationCols newline
+			. "mutationStepX=" mutationStepX newline
+			. "hasBomber=" (bitmaps.Has("Bomber") ? 1 : 0) newline
+			. "hasBomberbg=" (bitmaps.Has("Bomberbg") ? 1 : 0) newline
+			. "hasBomberhover=" (bitmaps.Has("Bomberhover") ? 1 : 0) newline
+			. "hasBomberbghover=" (bitmaps.Has("Bomberbghover") ? 1 : 0) newline
+			. "missingBeeBitmapKeys=" (missingKeys = "" ? "<none>" : missingKeys) newline
+		try FileDelete(".\settings\autojelly_ui_debug.txt")
+		FileAppend(info, ".\settings\autojelly_ui_debug.txt", "UTF-8")
+		if bitmaps.Has("Bomber")
+			try Gdip_SaveBitmapToFile(bitmaps["Bomber"], ".\settings\autojelly_debug_bomber.png")
+		if bitmaps.Has("Bomberbg")
+			try Gdip_SaveBitmapToFile(bitmaps["Bomberbg"], ".\settings\autojelly_debug_bomberbg.png")
+		try {
+			debugBitmap := Gdip_CreateBitmapFromHBITMAP(hBM)
+			Gdip_SaveBitmapToFile(debugBitmap, ".\settings\autojelly_ui_debug.png")
+			Gdip_DisposeImage(debugBitmap)
+		}
+	}
+	editMutationThreshold(mutationName) {
+		global mutationThresholdValues, mutationsArr
+		currentValue := mutationThresholdValues.Get(mutationName, "")
+		mutationLabel := mutationName
+		for _, mutation in mutationsArr
+			if (mutation.name = mutationName) {
+				mutationLabel := mutation.promptName
+				break
+			}
+		result := InputBox("Enter the minimum value for " mutationLabel ".``nLeave blank to clear it.", mutationLabel " Minimum", "w320 h150", currentValue)
+		if (result.Result = "Cancel")
+			return
+		value := Trim(result.Value)
+		if (value != "" && !RegExMatch(value, "^\d+(?:\.\d+)?$")) {
+			MsgBox "Enter a valid number or leave it blank to clear the minimum.", "Auto-Jelly", 0x40030
+			return
+		}
+		mutationThresholdValues[mutationName] := value
+		IniWrite value, ".\settings\mutations.ini", "mutationThresholds", mutationName "Min"
+		DrawGUI()
+	}
+	LogMutationRead(source, rawText, normalizedText, parsedValue, decision, selectedMutations, candidateMutation := 0) {
+		global mutationLogPath
+		newline := Chr(13) . Chr(10)
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		if !FileExist(mutationLogPath) {
+			header := "Timestamp,Source,RawOCR,NormalizedText,ParsedValue,Decision,"
+				. "CandidateMutation,MinValue,SelectedFilters"
+			FileAppend(header . newline, mutationLogPath, "UTF-8")
+		}
+		candidateName := ""
+		minValue := ""
+		if IsObject(candidateMutation) {
+			try candidateName := candidateMutation.name
+			try minValue := candidateMutation.minValue
+		}
+		line := LogSanitize(FormatTime(A_Now, "yyyy-MM-dd HH:mm:ss")) ","
+			. LogSanitize(source) ","
+			. LogSanitize(rawText) ","
+			. LogSanitize(normalizedText) ","
+			. LogSanitize(parsedValue) ","
+			. LogSanitize(decision) ","
+			. LogSanitize(candidateName) ","
+			. LogSanitize(minValue) ","
+			. LogSanitize(FormatMutationFilters(selectedMutations))
+		FileAppend(line . newline, mutationLogPath, "UTF-8")
+	}
+	FormatMutationFilters(selectedMutations) {
+		filterText := ""
+		for _, mutation in selectedMutations {
+			if (filterText != "")
+				filterText .= "; "
+			filterText .= mutation.name
+			if (mutation.minValue != "")
+				filterText .= ">=" mutation.minValue
+		}
+		return filterText
+	}
+	LogSanitize(value) {
+		cr := Chr(13)
+		lf := Chr(10)
+		value := "" value
+		value := StrReplace(value, cr . lf, " <NL> ")
+		value := StrReplace(value, lf, " <NL> ")
+		value := StrReplace(value, cr, " <NL> ")
+		value := StrReplace(value, ",", ";")
+		return value
+	}
+	NormalizeMutationText(rawText) {
+		text := RegExReplace(rawText, "i)mutation", " ")
+		text := RegExReplace(text, "[\r\n]+", " ")
+		text := RegExReplace(text, "\s+", " ")
+		return Trim(text)
+	}
+	BuildMutationMatchText(text) {
+		return StrLower(RegExReplace(text, "[^A-Za-z]", ""))
+	}
+	ReadBestMutationValue(mutationLeft, mutationTop, ocr_language, fullText := "", panelBitmap := 0) {
+		bestInfo := {raw: "", cleaned: "", value: "", display: "", hasPercent: 0, attempts: []}
+		firstValueInfo := 0
+		for _, rect in [[18, 6, 92, 26], [12, 4, 108, 28], [26, 8, 78, 24], [16, 10, 96, 24], [10, 12, 110, 26], [6, 8, 118, 30]] {
+			if panelBitmap
+				info := ReadMutationValueAt(rect[1], rect[2], rect[3], rect[4], ocr_language, fullText, panelBitmap)
+			else
+				info := ReadMutationValueAt(mutationLeft + rect[1], mutationTop + rect[2], rect[3], rect[4], ocr_language, fullText)
+			info.rect := [rect[1], rect[2], rect[3], rect[4]]
+			bestInfo.attempts.Push(info)
+			if (bestInfo.raw = "" && (info.raw != "" || info.cleaned != "")) {
+				bestInfo.raw := info.raw
+				bestInfo.cleaned := info.cleaned
+				bestInfo.value := info.value
+				bestInfo.display := info.display
+				bestInfo.hasPercent := info.hasPercent
+			}
+			if !IsObject(firstValueInfo) && (info.value != "")
+				firstValueInfo := info
+		}
+		Sleep 120
+		for _, rect in [[22, 6, 88, 24], [14, 6, 102, 26], [8, 10, 114, 28], [12, 14, 108, 24], [2, 24, 112, 28], [0, 20, 120, 34]] {
+			if panelBitmap
+				info := ReadMutationValueAt(rect[1], rect[2], rect[3], rect[4], ocr_language, fullText, panelBitmap)
+			else
+				info := ReadMutationValueAt(mutationLeft + rect[1], mutationTop + rect[2], rect[3], rect[4], ocr_language, fullText)
+			info.rect := [rect[1], rect[2], rect[3], rect[4]]
+			bestInfo.attempts.Push(info)
+			if (bestInfo.raw = "" && (info.raw != "" || info.cleaned != "")) {
+				bestInfo.raw := info.raw
+				bestInfo.cleaned := info.cleaned
+				bestInfo.value := info.value
+				bestInfo.display := info.display
+				bestInfo.hasPercent := info.hasPercent
+			}
+			if !IsObject(firstValueInfo) && (info.value != "")
+				firstValueInfo := info
+		}
+		if (fullText != "") {
+			info := ExtractMutationValue(fullText, fullText)
+			info.source := "fullText"
+			bestInfo.attempts.Push(info)
+			if (bestInfo.raw = "" && (info.raw != "" || info.cleaned != "")) {
+				bestInfo.raw := info.raw
+				bestInfo.cleaned := info.cleaned
+				bestInfo.value := info.value
+				bestInfo.display := info.display
+				bestInfo.hasPercent := info.hasPercent
+			}
+			if !IsObject(firstValueInfo) && (info.value != "")
+				firstValueInfo := info
+		}
+		if IsObject(firstValueInfo) {
+			firstValueInfo.attempts := bestInfo.attempts
+			return firstValueInfo
+		}
+		return bestInfo
+	}
+	ReadMutationValueAt(left, top, width, height, ocr_language, fullText := "", panelBitmap := 0) {
+		; Reuse the panel capture when available to avoid re-screenshotting the same roll.
+		if panelBitmap
+			sourceBitmap := Gdip_CloneBitmapArea(panelBitmap, left, top, width, height)
+		else
+			sourceBitmap := Gdip_BitmapFromScreen(left "|" top "|" width "|" height)
+		bestInfo := {raw: "", cleaned: "", value: "", display: "", hasPercent: 0}
+		for _, variant in [[-60, 30, 3], ["", "", 6], [-40, 20, 5], [-75, 45, 4]] {
+			valueBitmap := PrepareMutationValueBitmap(sourceBitmap, variant[3], variant[1], variant[2])
+			valueHBitmap := Gdip_CreateHBITMAPFromBitmap(valueBitmap)
+			valueStream := HBitmapToRandomAccessStream(valueHBitmap)
+			valueRawText := ocr(valueStream, ocr_language)
+			Gdip_DisposeImage(valueBitmap)
+			info := ExtractMutationValue(valueRawText)
+			if (bestInfo.raw = "" && (info.raw != "" || info.cleaned != ""))
+				bestInfo := info
+			if (info.value != "") {
+				Gdip_DisposeImage(sourceBitmap)
+				return info
+			}
+		}
+		Gdip_DisposeImage(sourceBitmap)
+		return bestInfo
+	}
+	PrepareMutationValueBitmap(pBitmap, scale := 3, effectA := "", effectB := "") {
+		workBitmap := Gdip_CloneBitmap(pBitmap)
+		if (effectA != "") {
+			valueEffect := Gdip_CreateEffect(5, effectA, effectB)
+			Gdip_BitmapApplyEffect(workBitmap, valueEffect)
+			Gdip_DisposeEffect(valueEffect)
+		}
+		scaledBitmap := ScaleMutationValueBitmap(workBitmap, scale)
+		Gdip_DisposeImage(workBitmap)
+		return scaledBitmap
+	}
+	ScaleMutationValueBitmap(pBitmap, scale := 3) {
+		width := Gdip_GetImageWidth(pBitmap)
+		height := Gdip_GetImageHeight(pBitmap)
+		scaledBitmap := Gdip_CreateBitmap(width * scale, height * scale)
+		G := Gdip_GraphicsFromImage(scaledBitmap)
+		Gdip_SetInterpolationMode(G, 7)
+		Gdip_SetSmoothingMode(G, 4)
+		Gdip_DrawImage(G, pBitmap, 0, 0, width * scale, height * scale, 0, 0, width, height)
+		Gdip_DeleteGraphics(G)
+		return scaledBitmap
+	}
+	DumpMutationOCRSample(source, decision, mutationLeft, mutationTop, normalizedText, valueInfo, mutation := 0, note := "") {
+		global mutationSampleDir
+		if !DirExist(".\settings")
+			DirCreate(".\settings")
+		if !DirExist(mutationSampleDir)
+			DirCreate(mutationSampleDir)
+		fileStem := mutationSampleDir "\" RegExReplace(source, "[^\w]+", "_") "_" RegExReplace(decision, "[^\w]+", "_") "_" FormatTime(, "yyyyMMdd_HHmmss") "_" A_TickCount
+		panelBitmap := Gdip_BitmapFromScreen(mutationLeft "|" mutationTop "|210|90")
+		Gdip_SaveBitmapToFile(panelBitmap, fileStem "_panel.png")
+		Gdip_DisposeImage(panelBitmap)
+		newline := Chr(13) . Chr(10)
+		infoText := "Timestamp=" FormatTime(, "yyyy-MM-dd HH:mm:ss") newline
+			. "Source=" source newline
+			. "Decision=" decision newline
+		if (normalizedText != "")
+			infoText .= "NormalizedText=" normalizedText newline
+		if (note != "")
+			infoText .= "Note=" note newline
+		if IsObject(mutation) {
+			try infoText .= "MutationName=" mutation.name newline
+			try infoText .= "MutationLabel=" mutation.label newline
+		}
+		if IsObject(valueInfo) {
+			try infoText .= "ValueRaw=" valueInfo.raw newline
+			try infoText .= "ValueCleaned=" valueInfo.cleaned newline
+			try infoText .= "ValueDisplay=" valueInfo.display newline
+			try infoText .= "ValueHasPercent=" valueInfo.hasPercent newline
+			try attempts := valueInfo.attempts
+			if IsObject(attempts) {
+				for index, attempt in attempts {
+					infoText .= newline "[Attempt " index "]" newline
+					try infoText .= "Raw=" attempt.raw newline
+					try infoText .= "Cleaned=" attempt.cleaned newline
+					try infoText .= "Display=" attempt.display newline
+					try infoText .= "HasPercent=" attempt.hasPercent newline
+					try rect := attempt.rect
+					if IsObject(rect) {
+						infoText .= "Rect=" rect[1] "," rect[2] "," rect[3] "," rect[4] newline
+						valueBitmap := Gdip_BitmapFromScreen((mutationLeft + rect[1]) "|" (mutationTop + rect[2]) "|" rect[3] "|" rect[4])
+						Gdip_SaveBitmapToFile(valueBitmap, fileStem "_value" index ".png")
+						Gdip_DisposeImage(valueBitmap)
+					}
+				}
+			}
+		}
+		FileAppend(infoText, fileStem ".txt", "UTF-8")
+	}
+	FindMutationValueToken(text) {
+		text := NormalizeMutationValueOCRText(text)
+		if RegExMatch(text, "[\+\-]\s*\d+(?:\.\d+)?\s*%?", &valueMatch)
+			return RegExReplace(valueMatch[0], "\s+")
+		if RegExMatch(text, "(?<![A-Za-z])\d+(?:\.\d+)?\s*%?(?![A-Za-z])", &valueMatch)
+			return RegExReplace(valueMatch[0], "\s+")
+		return ""
+	}
+	NormalizeMutationValueOCRText(text) {
+		text := Trim(text)
+		text := RegExReplace(text, "[\r\n]+", " ")
+		text := RegExReplace(text, "\s+", " ")
+		text := RegExReplace(text, "i)(\d)\s*(\d)0/0", "$1$2%")
+		text := RegExReplace(text, "i)(\d)\s*(\d)[oO]/0", "$1$2%")
+		text := RegExReplace(text, "i)(\d)\s*(\d)[oO]/[oO]", "$1$2%")
+		text := RegExReplace(text, "i)(\d)\s*0/0", "$1%")
+		text := RegExReplace(text, "i)(\d)\s*[oO]/0", "$1%")
+		text := RegExReplace(text, "i)(\d)\s*[oO]/[oO]", "$1%")
+		return text
+	}
+	ExtractMutationValue(rawText, fullText := "") {
+		valueText := FindMutationValueToken(rawText)
+		value := ""
+		display := ""
+		if (!RegExMatch(valueText, "[\+\-]?\d+(?:\.\d+)?", &valueMatch) && fullText != "") {
+			fallbackText := FindMutationValueToken(fullText)
+			if RegExMatch(fallbackText, "[\+\-]?\d+(?:\.\d+)?", &valueMatch)
+				valueText := fallbackText
+		}
+		if RegExMatch(valueText, "[\+\-]?\d+(?:\.\d+)?", &valueMatch) {
+			display := valueMatch[0]
+			value := valueMatch[0] + 0
+			if (SubStr(display, 1, 1) != "+" && SubStr(display, 1, 1) != "-")
+				display := "+" display
+			if (InStr(valueText, "%") || InStr(fullText, "%"))
+				display .= "%"
+		}
+		return {
+			raw: rawText,
+			cleaned: valueText,
+			value: value,
+			display: display,
+			hasPercent: (InStr(valueText, "%") || InStr(fullText, "%")) ? 1 : 0
+		}
+	}
+	FormatMutationLogValue(mutation, valueInfo) {
+		if !IsObject(mutation) {
+			if IsObject(valueInfo)
+				try return valueInfo.cleaned
+			return ""
+		}
+		display := FormatMutationValueDisplay(mutation, valueInfo)
+		if (display != "")
+			return display
+		if IsObject(valueInfo)
+			try return valueInfo.cleaned
+		return ""
+	}
+	FormatMutationValueDisplay(mutation, valueInfo) {
+		resolvedValue := ResolveMutationValue(mutation, valueInfo)
+		return resolvedValue.valid ? resolvedValue.display : ""
+	}
+	ResolveMutationValue(mutation, valueInfo) {
+		attempts := []
+		lastInvalid := {valid: 0, value: "", display: ""}
+		bestResolved := 0
+		bestCount := 0
+		bestOrder := 0
+		scoredValues := Map()
+		if !IsObject(valueInfo)
+			return lastInvalid
+		try attempts := valueInfo.attempts
+		if !IsObject(attempts) || !attempts.Length
+			attempts := [valueInfo]
+		for index, attempt in attempts {
+			if !IsObject(attempt)
+				continue
+			resolved := ResolveMutationValueCandidate(mutation, attempt)
+			if resolved.valid {
+				key := resolved.display
+				if !scoredValues.Has(key)
+					scoredValues[key] := {count: 0, order: index, resolved: resolved}
+				entry := scoredValues[key]
+				entry.count += 1
+				if (entry.order > index)
+					entry.order := index
+				scoredValues[key] := entry
+				if (entry.count > bestCount || (entry.count = bestCount && (!bestOrder || entry.order < bestOrder))) {
+					bestCount := entry.count
+					bestOrder := entry.order
+					bestResolved := entry.resolved
+				}
+				continue
+			}
+			if (lastInvalid.value = "" && resolved.value != "")
+				lastInvalid := resolved
+		}
+		if IsObject(bestResolved)
+			return bestResolved
+		return lastInvalid
+	}
+	ResolveMutationValueCandidate(mutation, valueInfo) {
+		value := ""
+		display := ""
+		hasPercent := 0
+		if IsObject(valueInfo) {
+			try value := valueInfo.value
+			try display := valueInfo.display
+			try hasPercent := valueInfo.hasPercent
+		}
+		if (value = "")
+			return {valid: 0, value: "", display: ""}
+		if (display = "")
+			display := "" value
+		if (SubStr(display, 1, 1) != "+" && SubStr(display, 1, 1) != "-")
+			display := "+" display
+		if !IsObject(mutation)
+			return {valid: 1, value: value, display: display}
+		if (value < mutation.rangeMin || value > mutation.rangeMax)
+			return {valid: 0, value: value, display: ""}
+		ambiguous := MutationValueAmbiguous(mutation, value)
+		if (hasPercent && mutation.unit != "%")
+			return {valid: 0, value: value, display: ""}
+		if (!hasPercent && ambiguous)
+			return {valid: 0, value: value, display: ""}
+		if (mutation.unit = "%" && !InStr(display, "%"))
+			display .= "%"
+		if (mutation.unit = "" && InStr(display, "%"))
+			display := StrReplace(display, "%")
+		return {valid: 1, value: value, display: display}
+	}
+	MutationValueAmbiguous(mutation, value) {
+		if !IsObject(mutation)
+			return 0
+		switch mutation.name {
+			case "GatherPct", "GatherFlat":
+				return (value = 10)
+			case "ConvertPct", "ConvertFlat":
+				return (value >= 20 && value <= 30)
+		}
+		return 0
+	}
+	DescribeMutationForPrompt(mutation) {
+		if IsObject(mutation) {
+			try return mutation.baseName
+			try return mutation.label
+		}
+		return ""
+	}
+	AutoJellySetStatus(newState, details) {
+		statusText := "[" A_MM "/" A_DD "][" A_Hour ":" A_Min ":" A_Sec "] " newState ": Auto-Jelly" . Chr(10) . details
+		try {
+			MainGui["state"].Text := newState ": Auto-Jelly"
+		}
+		DetectHiddenWindows 1
+		if WinExist("Status.ahk ahk_class AutoHotkey")
+			try SendMessage 0xC2, 0, StrPtr(statusText)
+		DetectHiddenWindows 0
+	}
+	AutoJellyDescribeMatch(matchedMutation) {
+		mutationText := ""
+		if IsObject(matchedMutation) {
+			try mutationText := matchedMutation.name
+			if (mutationText != "") {
+				displayValue := ""
+				try displayValue := matchedMutation.display
+				if (displayValue = "")
+					try displayValue := matchedMutation.value
+				if (displayValue != "")
+					mutationText .= " (" displayValue ")"
+			}
+		}
+		return mutationText
+	}
+	PromptUnreadableMutation(mutation, normalizedText, valueInfo, title) {
+		mutationName := DescribeMutationForPrompt(mutation)
+		valueRawText := ""
+		if IsObject(valueInfo)
+			try valueRawText := NormalizeMutationText(valueInfo.raw)
+		notify := "Unreadable Mutation Value"
+		if (mutationName != "")
+			notify .= "``nMutation: " mutationName
+		if (normalizedText != "")
+			notify .= "``nMutation OCR: " normalizedText
+		if (valueRawText != "")
+			notify .= "``nValue OCR: " valueRawText
+		AutoJellySetStatus("Warning", notify)
+		msg := "Detected selected mutation type: " mutationName ".``nThe value could not be read after OCR retries.``nKeep this?"
+		if (normalizedText != "")
+			msg .= "``n``nMutation OCR: " normalizedText
+		if (valueRawText != "")
+			msg .= "``nValue OCR: " valueRawText
+		return (MsgBox(msg, title, 0x40024) = "Yes")
+	}
+	GetBeeAtMouse(mouseX, mouseY) {
+		global mgui, beeGui, beeArr, beeCols, beeStartX, beeStartY, beeStepX, beeStepY, beeControlW, beeControlH
+		if (IsObject(beeGui) && DllCall("IsWindowVisible", "ptr", beeGui.Hwnd)) {
+			WinGetPos(&guiX, &guiY,,, "ahk_id " beeGui.Hwnd)
+			baseX := 0, baseY := 0
+		}
+		else {
+			WinGetPos(&guiX, &guiY,,, "ahk_id " mgui.Hwnd)
+			baseX := beeStartX, baseY := beeStartY
+		}
+		localX := mouseX - guiX
+		localY := mouseY - guiY
+		if (localX < baseX || localY < baseY)
+			return ""
+		col := Floor((localX - baseX) / beeStepX)
+		row := Floor((localY - baseY) / beeStepY)
+		if (col < 0 || col >= beeCols || row < 0)
+			return ""
+		tileX := baseX + col * beeStepX
+		tileY := baseY + row * beeStepY
+		if (localX > tileX + beeControlW || localY > tileY + beeControlH)
+			return ""
+		index := row * beeCols + col + 1
+		return (index <= beeArr.Length) ? beeArr[index] : ""
+	}
+	GetBeeTileRect(beeName) {
+		global beeArr, beeCols, beeStartX, beeStartY, beeStepX, beeStepY, beeControlW, beeControlH
+		for _, currentBee in beeArr {
+			if (currentBee != beeName)
+				continue
+			index := A_Index
+			col := Mod(index-1, beeCols)
+			row := (index-1)//beeCols
+			return {x: beeStartX + col * beeStepX, y: beeStartY + row * beeStepY, w: beeControlW, h: beeControlH}
+		}
+		return {x: beeStartX, y: beeStartY, w: beeControlW, h: beeControlH}
+	}
+	BeeMutationSectionName(beeName) {
+		return "beeMutations_" beeName
+	}
+	LoadBeeMutationOverrides() {
+		global beeArr, mutationsArr, beeMutationOverrides
+		beeMutationOverrides := Map()
+		for _, beeName in beeArr {
+			section := BeeMutationSectionName(beeName)
+			state := {enabled: IniRead(".\settings\mutations.ini", section, "enabled", 0) + 0, selected: Map(), thresholds: Map()}
+			for _, mutation in mutationsArr {
+				checked := IniRead(".\settings\mutations.ini", section, mutation.name, 0) + 0
+				threshold := IniRead(".\settings\mutations.ini", section, mutation.name "Min", "")
+				state.selected[mutation.name] := checked
+				state.thresholds[mutation.name] := threshold
+			}
+			if state.enabled
+				beeMutationOverrides[beeName] := state
+		}
+	}
+	BeeMutationOverrideEnabled(beeName) {
+		return IniRead(".\settings\mutations.ini", BeeMutationSectionName(beeName), "enabled", 0) + 0
+	}
+	HasBeeMutationOverride(beeName) {
+		return BeeMutationOverrideEnabled(beeName)
+	}
+	GetBeeSpecificMutations(beeName) {
+		global mutationsArr
+		selected := []
+		if !BeeMutationOverrideEnabled(beeName)
+			return selected
+		section := BeeMutationSectionName(beeName)
+		for _, mutation in mutationsArr {
+			checked := IniRead(".\settings\mutations.ini", section, mutation.name, 0) + 0
+			if !checked
+				continue
+			minValue := ""
+			thresholdRaw := IniRead(".\settings\mutations.ini", section, mutation.name "Min", "")
+			if RegExMatch(thresholdRaw, "[-+]?\d+(?:\.\d+)?", &thresholdMatch)
+				minValue := thresholdMatch[0] + 0
+			selected.Push({
+				name: mutation.name,
+				label: mutation.promptName,
+				uiText: mutation.uiText,
+				baseName: mutation.baseName,
+				triggers: mutation.triggers,
+				rangeMin: mutation.rangeMin,
+				rangeMax: mutation.rangeMax,
+				unit: mutation.unit,
+				minValue: minValue
+			})
+		}
+		return selected
+	}
+	GetActiveMutationsForBee(beeName, fallbackSelectedMutations) {
+		beeSpecificEnabled := BeeMutationOverrideEnabled(beeName)
+		beeSpecific := GetBeeSpecificMutations(beeName)
+		return beeSpecificEnabled ? beeSpecific : fallbackSelectedMutations
+	}
+	GetControlName(ctrl) {
+		global mgui, beeMutationGui
+		try return mgui[ctrl].name
+		catch {
+			if IsObject(beeMutationGui) {
+				try return beeMutationGui[ctrl].name
+				catch
+					return ""
+			}
+		}
+		return ""
+	}
+	OpenBeeMutationPopup(beeName) {
+		global beeMutationGui, beeMutationPopupBee, mutationsArr, mutationThresholdValues, mgui, mutations
+		if !mutations
+			return
+		beeMutationPopupBee := beeName
+		if IsObject(beeMutationGui) {
+			try beeMutationGui.Destroy()
+		}
+		beeMutationGui := Gui("+AlwaysOnTop +OwnDialogs -Caption +ToolWindow +Border -DPIScale", "Bee Mutation - " beeName)
+		beeMutationGui.BackColor := "131416"
+		popupW := 372
+		popupH := 305
+		beeMutationGui.SetFont("s9 cFEC6DF", "Comic Sans MS")
+		beeMutationGui.OnEvent("Close", BeeMutationPopupClose)
+		beeMutationGui.SetFont("s9 c131416", "Comic Sans MS")
+		beeMutationGui.AddText("vbeeMutMove x0 y0 w" popupW " h30 BackgroundFEC6DF")
+		beeMutationGui.AddText("vbeeMutTitle x12 y6 w180 h17 BackgroundTrans", "Mutations for " beeName)
+		beeMutationGui.SetFont("s8 cB7B9BD", "Comic Sans MS")
+		beeMutationGui.AddText("x12 y34 w340 h14 BackgroundTrans", "Use this panel to override the universal mutation selectors for one bee.")
+		beeMutationGui.AddText("x12 y50 w340 h14 BackgroundTrans", "Leave boxes blank to fall back to the main mutation thresholds.")
+		enabledText := BeeMutationOverrideEnabled(beeName) ? "Override enabled" : "Override disabled"
+		enabledColor := BeeMutationOverrideEnabled(beeName) ? "8ED18A" : "FF8E939A"
+		beeMutationGui.SetFont("s7 c" enabledColor, "Comic Sans MS")
+		beeMutationGui.AddText("vbeeMutStatus x242 y6 w110 h14 Right BackgroundTrans", enabledText)
+		beeMutationGui.SetFont("s9 cFEC6DF", "Comic Sans MS")
+		section := BeeMutationSectionName(beeName)
+		for _, mutation in mutationsArr {
+			col := Mod(A_Index-1, 2)
+			row := (A_Index-1)//2
+			x := 12 + col * 175
+			y := 80 + row * 28
+			ctrlBase := "beeMut_" mutation.name
+			checked := IniRead(".\settings\mutations.ini", section, mutation.name, 0) + 0
+			threshold := IniRead(".\settings\mutations.ini", section, mutation.name "Min", mutationThresholdValues.Get(mutation.name, ""))
+			chk := beeMutationGui.AddCheckBox("v" ctrlBase " x" x " y" y " w16 h16")
+			chk.Value := checked
+			beeMutationGui.AddText("x" x+22 " y" y-1 " w100 h16 cFEC6DF BackgroundTrans", mutation.uiText)
+			edit := beeMutationGui.AddEdit("v" ctrlBase "Min x" x+122 " y" y-5 " w44 h20 Center")
+			edit.Text := threshold
+			StyleBeeMutationEdit(edit)
+		}
+		btnY := 80 + 6 * 28 + 18
+		beeMutationGui.AddText("x12 y" btnY-18 " w348 h16 c8E939A BackgroundTrans", "If enabled, this bee ignores the main mutation list.")
+		saveBtn := beeMutationGui.AddButton("x12 y" btnY " w164 h24", "Save")
+		saveBtn.OnEvent("Click", BeeMutationPopupSave)
+		cancelBtn := beeMutationGui.AddButton("x196 y" btnY " w164 h24", "Cancel")
+		cancelBtn.OnEvent("Click", BeeMutationPopupClose)
+		WinGetPos(&guiX, &guiY,,, "ahk_id " mgui.Hwnd)
+		tile := GetBeeTileRect(beeName)
+		popupX := guiX + tile.x + beeControlW + 8
+		popupY := guiY + tile.y - 8
+		if (popupX < 0)
+			popupX := 0
+		if (popupY < 0)
+			popupY := guiY + tile.y + beeControlH + 8
+		if (popupX + popupW > A_ScreenWidth)
+			popupX := Max(0, guiX + tile.x - popupW - 8)
+		if (popupY + popupH > A_ScreenHeight)
+			popupY := Max(0, A_ScreenHeight - popupH)
+		beeMutationGui.Show("x" popupX " y" popupY " w" popupW " h" popupH)
+	}
+	BeeMutationPopupSave(*) {
+		global beeMutationGui, beeMutationPopupBee, mutationsArr, beeMutationOverrides
+		if !IsObject(beeMutationGui) || (beeMutationPopupBee = "")
+			return
+		section := BeeMutationSectionName(beeMutationPopupBee)
+		state := {selected: Map(), thresholds: Map()}
+		active := 0
+		for _, mutation in mutationsArr {
+			ctrlBase := "beeMut_" mutation.name
+			checked := beeMutationGui[ctrlBase].Value ? 1 : 0
+			threshold := Trim(beeMutationGui[ctrlBase "Min"].Value)
+			IniWrite(checked, ".\settings\mutations.ini", section, mutation.name)
+			IniWrite(threshold, ".\settings\mutations.ini", section, mutation.name "Min")
+			state.selected[mutation.name] := checked
+			state.thresholds[mutation.name] := threshold
+			if checked
+				active := 1
+		}
+		IniWrite(active ? 1 : 0, ".\settings\mutations.ini", section, "enabled")
+		state.enabled := active ? 1 : 0
+		if active
+			beeMutationOverrides[beeMutationPopupBee] := state
+		else if beeMutationOverrides.Has(beeMutationPopupBee)
+			beeMutationOverrides.Delete(beeMutationPopupBee)
+		BeeMutationPopupClose()
+		DrawGUI()
+	}
+	BeeMutationPopupClose(*) {
+		global beeMutationGui, beeMutationPopupBee, beeMutationEditBrush, beeMutationEditMap
+		if IsObject(beeMutationGui) {
+			try beeMutationGui.Destroy()
+		}
+		if beeMutationEditBrush {
+			DllCall("gdi32\DeleteObject", "ptr", beeMutationEditBrush)
+			beeMutationEditBrush := 0
+		}
+		beeMutationEditMap := Map()
+		beeMutationGui := 0
+		beeMutationPopupBee := ""
+	}
+	StyleBeeMutationEdit(editCtrl) {
+		global beeMutationEditMap
+		beeMutationEditMap[editCtrl.Hwnd] := 1
+		return 1
+	}
+	WM_CTLCOLOREDIT(wParam, lParam, msg, hwnd) {
+		global beeMutationGui, beeMutationEditBrush, beeMutationEditMap
+		if !IsObject(beeMutationGui) || !beeMutationEditMap.Has(lParam)
+			return 0
+		if !beeMutationEditBrush
+			beeMutationEditBrush := DllCall("gdi32\CreateSolidBrush", "uint", 0x00262332, "ptr")
+		DllCall("SetTextColor", "ptr", wParam, "int", 0x00FEC6DF)
+		DllCall("SetBkColor", "ptr", wParam, "int", 0x00262332)
+		return beeMutationEditBrush
+	}
+	ToggleConfigValue(sectionName, keyName) {
+		global
+		currentValue := 0
+		try currentValue := IniRead(".\settings\mutations.ini", sectionName, keyName, 0) + 0
+		newValue := currentValue ? 0 : 1
+		%keyName% := newValue
+		IniWrite newValue, ".\settings\mutations.ini", sectionName, keyName
+		return newValue
+	}
+	SetConfigValue(sectionName, keyName, newValue) {
+		global
+		%keyName% := newValue
+		IniWrite newValue, ".\settings\mutations.ini", sectionName, keyName
+		return newValue
+	}
+	SelectOnlyBee(targetBee) {
+		global beeArr
+		SetConfigValue("bees", "selectAll", 0)
+		for _, beeName in beeArr
+			SetConfigValue("bees", beeName, beeName = targetBee ? 1 : 0)
+	}
+	HandleBeeSelectionClick(beeName) {
+		isSelectAll := IsSelectAllEnabled()
+		LogAutoJellyClick("BeeClickBefore", "bee=" beeName " selectAll=" isSelectAll " selected=" GetSelectedBeesForLog())
+		if isSelectAll
+			SelectOnlyBee(beeName)
+		else
+			ToggleConfigValue("bees", beeName)
+		LogAutoJellyClick("BeeClickAfter", "bee=" beeName " selectAll=" IsSelectAllEnabled() " selected=" GetSelectedBeesForLog() " count=" CountSelectedBees())
+		DrawGUI()
+		if IsObject(beeGui)
+			UpdateBeeOverlaySelection()
+	}
+	BeeOverlayClick(beeName, *) {
+		HandleBeeSelectionClick(beeName)
+	}
+	WM_LBUTTONDOWN(wParam, lParam, msg, hwnd) {
+		global
+		MouseGetPos(,, &mouseWin, &ctrl, 2)
+		if !ctrl {
+			LogAutoJellyClick("WM_LBUTTONDOWN", "ctrl=<none>")
+			return
+		}
+		ctrlName := GetControlName(ctrl)
+		if (ctrlName = "") {
+			LogAutoJellyClick("WM_LBUTTONDOWN", "ctrl=" ctrl " name=<lookup failed>")
+			return
+		}
+		if IsObject(beeMutationGui) && (mouseWin = beeMutationGui.Hwnd) {
+			if (ctrlName = "beeMutMove" || ctrlName = "beeMutTitle" || ctrlName = "beeMutStatus") {
+				PostMessage(0x00A1, 2)
+			}
+			return
+		}
+		LogAutoJellyClick("WM_LBUTTONDOWN", "ctrl=" ctrl " name=" ctrlName " hover=" hovercontrol " selected=" GetSelectedBeesForLog())
+		if RegExMatch(ctrlName, "^(.*)MutBtn$", &mutBtnMatch) {
+			if mutations
+				OpenBeeMutationPopup(mutBtnMatch[1])
+			return
+		}
+		if RegExMatch(ctrlName, "^(.*)MinBox$", &minBoxMatch) {
+			if mutations
+				editMutationThreshold(minBoxMatch[1])
+			return
+		}
+		switch ctrlName, 0 {
 			case "move":
 				PostMessage(0x00A1,2)
 			case "close":
@@ -9373,41 +10565,46 @@ blc_mutations(*) {
 			case "roll":
 				ReplaceSystemCursors()
 				blc_start()
+			case "setNeonBee":
+				ReplaceSystemCursors()
+				CaptureAutoNeonBeeTarget()
 			case "help":
 				ReplaceSystemCursors()	
-				Msgbox("This feature allows you to roll royal jellies until you obtain your specified bees and/or mutations!``n``nTo use:``n- Select the bees and mutations you want``n- Make sure your in-game Auto-Jelly settings are right``n- Put a neonberry on the bee you want to change (if trying ``n  to obtain a mutated bee) ``n- Use one royal jelly on the bee and click Yes``n- Click on Roll.``n``nTo stop: ``n- Press the escape key``n``nAdditional options:``n- Stop on Gifteds stops on any gifted bee, ``n  ignoring the mutation and your bee selection``n- Stop on Mythics stops on any mythic bee, ``n  ignoring the mutation and your bee selection", "Auto-Jelly Help", "0x40040")
+				Msgbox("This feature allows you to roll royal jellies until you obtain your specified bees and/or mutations!``n``nTo use:``n- Select the bees and exact mutation variants you want``n  such as Gath % vs Gath +``n- Click the M badge on a bee to set that bee mutation override``n- Click the number boxes to set minimum mutation values if needed``n- Make sure your in-game Auto-Jelly settings are right``n- Use Set Slot to save the bee slot this should target``n- If Auto-Neon is enabled, the macro will feed 1 neonberry at start and refresh it every 10 minutes 40 seconds``n- Use one royal jelly on the bee and click Yes``n- Click on Roll.``n``nIf the mutation type matches but the value cannot be read after OCR retries, the macro will stop and ask you instead of silently skipping it.``n``nThese number boxes write to settings\mutations.ini under [mutationThresholds], and Bitterberry uses the same values too.``n``nTo stop: ``n- Press the escape key``n``nAdditional options:``n- Auto-Neon automatically feeds 1 neonberry to the saved bee slot``n- Stop on Gifteds stops on any gifted bee, ``n  ignoring the mutation and your bee selection``n- Stop on Mythics stops on any mythic bee, ``n  ignoring the mutation and your bee selection", "Auto-Jelly Help", "0x40040")
 			case "selectAll":
-				IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "bees", mgui[ctrl].name)
+				ToggleConfigValue("bees", "selectAll")
 			case "Bomber", "Brave", "Bumble", "Cool", "Hasty", "Looker", "Rad", "Rascal", "Stubborn", "Bubble", "Bucko", "Commander", "Demo", "Exhausted", "Fire", "Frosty", "Honey", "Rage", "Riley":
-				if !selectAll
-					IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "bees", mgui[ctrl].name)
+				HandleBeeSelectionClick(ctrlName)
 			case "Shocked", "Baby", "Carpenter", "Demon", "Diamond", "Lion", "Music", "Ninja", "Shy", "Buoyant", "Fuzzy", "Precise", "Spicy", "Tadpole", "Vector":
-				if !selectAll
-					IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "bees", mgui[ctrl].name)
-			case "giftedStop", "mythicStop":
-				IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "extrasettings", mgui[ctrl].name)
+				HandleBeeSelectionClick(ctrlName)
+			case "autoNeon", "giftedStop", "mythicStop":
+				ToggleConfigValue("extrasettings", ctrlName)
 			case "mutations":
-				IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "mutations", mgui[ctrl].name)
+				ToggleConfigValue("mutations", ctrlName)
 			default:
 				if mutations
-					IniWrite(%mgui[ctrl].name% ^= 1, ".\settings\mutations.ini", "mutations", mgui[ctrl].name)
+					ToggleConfigValue("mutations", ctrlName)
 		}
 		DrawGUI()
 	}
 	WM_MOUSEMOVE(wParam, lParam, msg, hwnd) {
 		global
 		local ctrl, hover_ctrl, tt := 0
-		MouseGetPos(,,,&ctrl,2)
+		MouseGetPos(,, &mouseWin, &ctrl, 2)
 		if !ctrl || mgui["move"].hwnd = ctrl || mgui["close"].hwnd = ctrl
 			return
+		ctrlName := GetControlName(ctrl)
+		if (ctrlName = "")
+			return
 		ReplaceSystemCursors("IDC_HAND")
-		hovercontrol := mgui[ctrl].name
-		hover_ctrl := mgui[ctrl].hwnd
+		hovercontrol := ctrlName
+		hover_ctrl := ctrl
 		DrawGUI()
 		while ctrl = hover_ctrl {
-			sleep(20),MouseGetPos(,,,&ctrl,2)
-			if A_Index > 120 && beeArr.includes(hovercontrol) && !tt
-				tt:=1,ToolTip(hovercontrol . " Bee")
+			Sleep(20)
+			MouseGetPos(,,,&ctrl,2)
+			if A_Index > 35 && beeArr.includes(hovercontrol) && !tt
+				tt := 1, ToolTip(hovercontrol . " Bee")
 		}
 		hovercontrol := ""
 		ToolTip()
@@ -9444,17 +10641,35 @@ blc_mutations(*) {
 		}
 	}
 	blc_start() {
-		global stopping:=false
+		global
+		stopping:=false
 		hotkey "~*esc", stopToggle, "On"
+		AutoJellySetStatus("Starting", "Auto Jelly Started")
 		selectedBees := [], selectedMutations := []
 		for i in beeArr
-			if %i% || SelectAll
+			if IsBeeSelected(i)
 				selectedBees.push(i)
 		if mutations {
 			selectedMutations := []
-			for i in mutationsArr
-				if %i.name%
-					selectedMutations.push(i)
+			for i in mutationsArr {
+				if !%i.name%
+					continue
+				minValue := ""
+				thresholdRaw := IniRead(".\settings\mutations.ini", "mutationThresholds", i.name "Min", "")
+				if RegExMatch(thresholdRaw, "[-+]?\d+(?:\.\d+)?", &thresholdMatch)
+					minValue := thresholdMatch[0] + 0
+				selectedMutations.push({
+					name: i.name,
+					label: i.promptName,
+					uiText: i.uiText,
+					baseName: i.baseName,
+					triggers: i.triggers,
+					rangeMin: i.rangeMin,
+					rangeMax: i.rangeMax,
+					unit: i.unit,
+					minValue: minValue
+				})
+			}
 		}
 		ocr_enabled := 1
 		ocr_language := ""
@@ -9479,19 +10694,39 @@ blc_mutations(*) {
 				break
 			}
 		}
-		if (ocr_language = "" && ocr_enabled)
-			if ((ocr_language := SubStr(list, 1, InStr(list, "``n")-1)) = "")
+		if (ocr_language = "" && ocr_enabled) {
+			if ((ocr_language := SubStr(list, 1, InStr(list, "``n")-1)) = "") {
+				AutoJellySetStatus("Error", "No OCR language pack installed")
 				return msgbox("No OCR supporting languages are installed on your system! Please follow the Knowledge Base guide to install a supported language as a secondary language on Windows.", "WARNING!!", 0x1030)
-		if !(hwndRoblox:=GetRobloxHWND()) || !(GetRobloxClientPos(), windowWidth)
+			}
+		}
+		if !(hwndRoblox:=GetRobloxHWND()) || !(GetRobloxClientPos(), windowWidth) {
+			AutoJellySetStatus("Error", "Bee Swarm Simulator not found")
 			return msgbox("You must have Bee Swarm Simulator open to use this!", "Auto-Jelly", 0x40030)
-		if !selectedBees.length
+		}
+		if !selectedBees.length {
+			AutoJellySetStatus("Error", "No bees selected")
 			return msgbox("You must select at least one bee to run this macro!", "Auto-Jelly", 0x40030)
+		}
 		yOffset := GetYOffset(hwndRoblox, &fail)
-		if fail	
+		if fail {
+			AutoJellySetStatus("Warning", "Unable to detect in-game GUI offset")
 			MsgBox("Unable to detect in-game GUI offset!``nThis means the macro will NOT work correctly!``n``nThere are a few reasons why this can happen:``n- Incorrect graphics settings (check Troubleshooting Guide!)``n- Your Experience Language is not set to English``n- Something is covering the top of your Roblox window``n``nJoin our Discord server for support!", "WARNING!!", 0x1030 " T60")
+		}
 		if mgui is Gui
 			mgui.hide()
+		if beeGui is Gui
+			beeGui.Hide()
+		if autoNeon
+			if !AutoNeonBee(hwndRoblox, yOffset, 1) {
+				hotkey "~*esc", stopToggle, "Off"
+				if mgui is Gui
+					mgui.show()
+				return
+			}
 		While !stopping {
+			if autoNeon && !AutoNeonBee(hwndRoblox, yOffset)
+				break
 			ActivateRoblox()
 			click windowX + Round(0.5 * windowWidth + 10) " " windowY + yOffset + Round(0.4 * windowHeight + 230)
 			sleep 800
@@ -9500,6 +10735,7 @@ blc_mutations(*) {
 				for i, j in ["Buoyant", "Fuzzy", "Precise", "Spicy", "Tadpole", "Vector"]
 					if Gdip_ImageSearch(pBitmap, bitmaps["-" j]) || Gdip_ImageSearch(pBitmap, bitmaps["+" j]) {
 						Gdip_DisposeImage(pBitmap)
+						AutoJellySetStatus("Keeping", "Found Mythic Bee")
 						msgbox "Found a mythic bee!", "Auto-Jelly", 0x40040
 						break 2
 					}
@@ -9507,45 +10743,188 @@ blc_mutations(*) {
 				for i, j in beeArr {
 					if Gdip_ImageSearch(pBitmap, bitmaps["+" j]) {
 						Gdip_DisposeImage(pBitmap)
+						AutoJellySetStatus("Keeping", "Found Gifted Bee")
 						msgbox "Found a gifted bee!", "Auto-Jelly", 0x40040
 						break 2	
 					}	
 				}
 			found := 0
-			for i, j in selectedBees {
-				if Gdip_ImageSearch(pBitmap, bitmaps["-" j]) || Gdip_ImageSearch(pBitmap, bitmaps["+" j]) {
-					if (!mutations || !ocr_enabled || !selectedMutations.length) {
-						Gdip_DisposeImage(pBitmap)
-						if msgbox("Found a match!``nDo you want to keep this?","Auto-Jelly!", 0x40044) = "Yes"
-							break 2
-						else
-							continue 2
+			bestBee := ""
+			bestBeeScore := -1
+			bestBeePriority := -1
+			bestBeeMutations := []
+			beeNameOcrText := ""
+			Loop 2 {
+				passNum := A_Index
+				if (passNum = 2) {
+					Gdip_DisposeImage(pBitmap)
+					Sleep 120
+					pBitmap := Gdip_BitmapFromScreen(windowX + 0.5*windowWidth - 155 "|" windowY + yOffset + 0.425*windowHeight - 200 "|" 320 "|" 140)
+				}
+				beeNameOcrText := ""
+				if ocr_enabled {
+					hBitmap := Gdip_CreateHBITMAPFromBitmap(pBitmap)
+					pIRandomAccessStream := HBitmapToRandomAccessStream(hBitmap)
+					beeNameOcrText := NormalizeMutationText(ocr(pIRandomAccessStream, ocr_language))
+					DllCall("DeleteObject", "ptr", hBitmap)
+				}
+				ocrBeeTarget := ParseAutoJellyBeeName(beeNameOcrText)
+				for i, j in selectedBees {
+					bitmapBeeMatch := Gdip_ImageSearch(pBitmap, bitmaps["-" j]) || Gdip_ImageSearch(pBitmap, bitmaps["+" j])
+					ocrBeeMatch := ocr_enabled && (ocrBeeTarget = StrLower(j))
+					; ImageSearch returns 1 when the image is found (v2); the script runs from the Natro folder, so Assets is directly under A_ScriptDir
+					exactBeeMatch := 0
+					try exactBeeMatch := ImageSearch(&FoundX, &FoundY, 806, 304, 1111, 357, "*25 " A_ScriptDir "\Assets\autojelly_6ms\" StrLower(j) ".png")
+					matchScore := (ocrBeeMatch ? 1 : 0) + (bitmapBeeMatch ? 1 : 0) + (exactBeeMatch ? 1 : 0)
+					matchPriority := (ocrBeeMatch ? 4 : 0) + (bitmapBeeMatch ? 2 : 0) + (exactBeeMatch ? 1 : 0)
+					LogAutoJellyDetection(j, passNum, beeNameOcrText, ocrBeeTarget, ocrBeeMatch, bitmapBeeMatch, exactBeeMatch, matchScore)
+					if (matchScore > bestBeeScore || (matchScore = bestBeeScore && matchPriority > bestBeePriority)) {
+						bestBee := j
+						bestBeeScore := matchScore
+						bestBeePriority := matchPriority
+						bestBeeMutations := mutations ? GetActiveMutationsForBee(j, selectedMutations) : []
 					}
-					found := 1
-					break
+					if (matchScore = 3) {
+						found := 1
+						break 2
+					}
 				}
 			}
 			Gdip_DisposeImage(pBitmap)
-			if !found
+			if !found {
+				if (bestBee = "" || bestBeeScore <= 0)
+					continue
+				found := 1
+			}
+			if (bestBee = "")
 				continue
-			pBitmap := Gdip_BitmapFromScreen(windowX + Round(0.5 * windowWidth - 320) "|" windowY + yOffset + Round(0.4 * windowHeight + 17) "|210|90")
+			beeSelectedMutations := bestBeeMutations
+			if !mutations {
+				Gdip_DisposeImage(pBitmap)
+				AutoJellySetStatus("Detected", "Matched Selected Bee")
+				if msgbox("Found a match!``nDo you want to keep this?","Auto-Jelly!", 0x40044) = "Yes" {
+					AutoJellySetStatus("Keeping", "Matched Selected Bee")
+					return
+				}
+				else
+					continue
+			}
+			mutationLeft := windowX + Round(0.5 * windowWidth - 320)
+			mutationTop := windowY + yOffset + Round(0.4 * windowHeight + 17)
+			pBitmap := Gdip_BitmapFromScreen(mutationLeft "|" mutationTop "|210|90")
 			pEffect := Gdip_CreateEffect(5, -60,30)
 			Gdip_BitmapApplyEffect(pBitmap, pEffect)
 			Gdip_DisposeEffect(pEffect)
 			hBitmap := Gdip_CreateHBITMAPFromBitmap(pBitmap)
 			pIRandomAccessStream := HBitmapToRandomAccessStream(hBitmap)
-			text:= RegExReplace(ocr(pIRandomAccessStream), "i)([\r\n\s]|mutation)*")
-			found := 0
-			for i, j in selectedMutations
+			rawText := ocr(pIRandomAccessStream, ocr_language)
+			text := NormalizeMutationText(rawText)
+			matchText := BuildMutationMatchText(text)
+			matchedMutation := 0
+			logDecision := "no_trigger_match"
+			candidateMutation := 0
+			valueInfo := {raw: "", cleaned: "", value: "", display: "", hasPercent: 0}
+			triggerMatchFound := 0
+			for i, j in beeSelectedMutations {
 				for k, trigger in j.triggers
-					if inStr(text, trigger) { 
-						found := 1
+					if InStr(matchText, StrLower(trigger)) {
+						triggerMatchFound := 1
+						break 2
+					}
+			}
+			if !triggerMatchFound {
+				Gdip_DisposeImage(pBitmap)
+				LogMutationRead("Auto-Jelly", rawText " | ValueOCR=" valueInfo.raw, text " | ValueText=" valueInfo.cleaned, "", logDecision, beeSelectedMutations, candidateMutation)
+				continue
+			}
+			valueInfo := ReadBestMutationValue(mutationLeft, mutationTop, ocr_language, rawText, pBitmap)
+			Gdip_DisposeImage(pBitmap)
+			for i, j in beeSelectedMutations {
+				triggerMatched := 0
+				for k, trigger in j.triggers
+					if InStr(matchText, StrLower(trigger)) {
+						triggerMatched := 1
 						break
 					}
-			if !found
-				continue
-			if msgbox("Found a match!``nDo you want to keep this?","Auto-Jelly!", 0x40044) = "Yes"
+				if !triggerMatched
+					continue
+				candidateMutation := {
+					name: j.label,
+					minValue: j.minValue,
+					mutationDef: j
+				}
+				if (valueInfo.value = "") {
+					matchedMutation := {
+						name: j.label,
+						minValue: j.minValue,
+						missingValue: 1,
+						mutationDef: j,
+						ocrText: text,
+						valueInfo: valueInfo
+					}
+					candidateMutation := matchedMutation
+					logDecision := "missing_value"
+					DumpMutationOCRSample("Auto-Jelly", logDecision, mutationLeft, mutationTop, text, valueInfo, j)
+					break
+				}
+				resolvedValue := ResolveMutationValue(j, valueInfo)
+				if !resolvedValue.valid {
+					logDecision := MutationValueAmbiguous(j, valueInfo.value) && !valueInfo.hasPercent ? "ambiguous_value" : "out_of_range"
+					DumpMutationOCRSample("Auto-Jelly", logDecision, mutationLeft, mutationTop, text, valueInfo, j)
+					continue
+				}
+				if ((j.minValue != "") && (resolvedValue.value < j.minValue)) {
+					logDecision := "below_threshold"
+					continue
+				}
+				matchedMutation := {
+					name: j.label,
+					value: resolvedValue.value,
+					display: resolvedValue.display,
+					minValue: j.minValue,
+					mutationDef: j,
+					ocrText: text,
+					valueInfo: valueInfo
+				}
+				candidateMutation := matchedMutation
+				logDecision := "matched"
 				break
+			}
+			logMutation := 0
+			if IsObject(candidateMutation)
+				try logMutation := candidateMutation.mutationDef
+			LogMutationRead("Auto-Jelly", rawText " | ValueOCR=" valueInfo.raw, text " | ValueText=" valueInfo.cleaned, FormatMutationLogValue(logMutation, valueInfo), logDecision, beeSelectedMutations, candidateMutation)
+			if !matchedMutation
+				continue
+			missingValue := 0
+			if IsObject(matchedMutation)
+				try missingValue := matchedMutation.missingValue
+			if missingValue {
+				if PromptUnreadableMutation(matchedMutation.mutationDef, text, valueInfo, "Auto-Jelly!") {
+					mutationText := AutoJellyDescribeMatch(matchedMutation)
+					AutoJellySetStatus("Keeping", "Kept Unreadable Mutation" (mutationText != "" ? "``nMutation: " mutationText : ""))
+					break
+				}
+				continue
+			}
+			keepMsg := "Found a match!"
+			if matchedMutation.name {
+				keepMsg .= "``nMutation: " matchedMutation.name
+				displayValue := ""
+				try displayValue := matchedMutation.display
+				if (displayValue = "")
+					try displayValue := matchedMutation.value
+				if (displayValue != "")
+					keepMsg .= " (" displayValue ")"
+			}
+			keepMsg .= "``nDo you want to keep this?"
+			mutationText := AutoJellyDescribeMatch(matchedMutation)
+			AutoJellySetStatus("Detected", "Matched Selected Mutation" (mutationText != "" ? "``nMutation: " mutationText : ""))
+			if msgbox(keepMsg,"Auto-Jelly!", 0x40044) = "Yes" {
+				AutoJellySetStatus("Keeping", "Matched Selected Mutation" (mutationText != "" ? "``nMutation: " mutationText : ""))
+				break
+			}
+			DumpMutationOCRSample("Auto-Jelly", "user_rejected_match", mutationLeft, mutationTop, text, valueInfo, matchedMutation.mutationDef, "User clicked No on keep prompt")
 		}
 		hotkey "~*esc", stopToggle, "Off"
 		mgui.show()
@@ -11040,162 +12419,152 @@ PostSubmacroMessage(submacro, args*){
 		try PostMessage(args*)
 	DetectHiddenWindows 0
 }
-nm_Reset(checkAll:=1, wait:=2000, convert:=1, force:=0){
+nm_Reset(checkAll := 1, wait:=2000, convert := 1, force := 0)
+{
 	global resetTime, youDied, KeyDelay, SC_E, SC_Esc, SC_R, SC_Enter, RotRight, RotLeft, RotUp, RotDown, ZoomOut, objective, AFBrollingDice, AFBuseGlitter, AFBuseBooster, currentField, HiveConfirmed, GameFrozenCounter, bitmaps
-	;check for game frozen conditions
-	if (GameFrozenCounter>=3) { ;3 strikes
+	static hivedown := 0
+	static UIElements := Map("YesNoPrompt", {pBM: "yes",  ToClose: "no", SpamClick: False}
+		, "FeedWindow", {pBM: "feed", ToClose: "CancelFeed", SpamClick: False}
+		, "BlenderGUI", {pBM: "CloseGUI", ToClose: "CloseGUI", SpamClick: False}
+		, "ShopWindow", {pBM: "ShopArrowR", ToClose: "e_button", SpamClick: False}
+		, "QuestDialog", {pBM: "dialog", ToClose: "dialog", SpamClick: True}
+		, "Blender", {pBM: "CloseGUI", ToClose: "CloseGUI", SpamClick: False}
+		, "Close", {pBM: "close", ToClose: "close", SpamClick: False})
+
+	; Game frozen conditions - 3 strikes
+	if GameFrozenCounter >= 3
+	{
 		nm_setStatus("Detected", "Roblox Game Frozen, Restarting")
 		CloseRoblox()
-		GameFrozenCounter:=0
+		GameFrozenCounter := 0
 	}
+
 	DisconnectCheck()
 	nm_setShiftLock(0)
-	nm_OpenMenu()
-	if(youDied && !(instr(objective, "mondo") || CheckNight)){ ; add extra time if player died before reset expect when fighting bosses
-		wait:=max(wait, 20000)
-	}
-	;mondo or coconut crab likely killed you here! skip over this field if possible
-	if(youDied && (currentField="mountain top" || currentField="coconut"))
-		nm_currentFieldDown()
-	youDied:=0
-	nm_AutoFieldBoost(currentField) ; start rolling dice in background() if needed
+	nm_openMenu()
+	ActivateRoblox()
+	GetRobloxClientPos()
+	offsetY := GetYOffset()
 
-	; High priority interrupts. Will interrupt any reset not marked with the checkAll flag. Added to avoid infinite recursion
-	if checkAll {
+	; High prio interrupts + Field boost + Did i get killed by mondo or crab
+	if youDied && currentField = "coconut" || currentField = "mountain top"
+		nm_currentFieldDown(currentField)
+
+	youDied := 0
+	nm_AutoFieldBoost(currentField)
+
+	if CheckAll = 1
+	{
 		nm_fieldBoostBooster()
 		nm_Night()
 	}
-	if(force=1) {
-		HiveConfirmed:=0
+
+	if Force = 1
+		HiveConfirmed := 0
+
+	; Check if perfstats covering polar power here
+	pBMBuffs := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+30 "|" windowWidth "|50")
+	if (!Gdip_ImageSearch(pBMBuffs, bitmaps["Polar"]) && Gdip_ImageSearch(pBMBuffs, bitmaps["PolarVignette"]))
+	{
+		Gdip_DisposeImage(pBMBuffs)
+		Send("^{F7}"), Sleep(500)
+		pBMBuffs := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+30 "|" windowWidth "|50")  ;  retake screenshot
+		if (!Gdip_ImageSearch(pBMBuffs, bitmaps["Polar"]) && Gdip_ImageSearch(pBMBuffs, bitmaps["PolarVignette"]))
+			Send("^{F7}") ; revert changes, perf stats arent the issue
 	}
-	while (!HiveConfirmed) {
-		;failsafe game frozen
-		if(Mod(A_Index, 10) = 0) {
+	
+	Gdip_DisposeImage(pBMBuffs)
+
+	While !HiveConfirmed
+	{
+		if (Mod(A_Index, 10) = 0)
+		{
 			nm_setStatus("Closing", "and Re-Open Roblox")
 			CloseRoblox()
 			DisconnectCheck()
 			continue
 		}
+
 		DisconnectCheck()
 		ActivateRoblox()
 		nm_setShiftLock(0)
 		nm_OpenMenu()
-
 		hwnd := GetRobloxHWND()
 		offsetY := GetYOffset(hwnd)
-		;check that performance stats is disabled
 		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+36 "|" windowWidth "|24")
-		if ((Gdip_ImageSearch(pBMScreen, bitmaps["perfmem"], &pos, , , , , 2, , 5) = 1)
-		&& (Gdip_ImageSearch(pBMScreen, bitmaps["perfwhitefill"], , x := SubStr(pos, 1, (comma := InStr(pos, ",")) - 1), y := SubStr(pos, comma + 1), x + 17, y + 7, 2) = 0)) {
-			if ((Gdip_ImageSearch(pBMScreen, bitmaps["perfcpu"], &pos, x + 17, y, , y + 7, 2) = 1)
-			&& (Gdip_ImageSearch(pBMScreen, bitmaps["perfwhitefill"], , x := SubStr(pos, 1, (comma := InStr(pos, ",")) - 1), y := SubStr(pos, comma + 1), x + 17, y + 7, 2) = 0)) {
-				if ((Gdip_ImageSearch(pBMScreen, bitmaps["perfgpu"], &pos, x + 17, y, , y + 7, 2) = 1)
-				&& (Gdip_ImageSearch(pBMScreen, bitmaps["perfwhitefill"], , x := SubStr(pos, 1, (comma := InStr(pos, ",")) - 1), y := SubStr(pos, comma + 1), x + 17, y + 7, 2) = 0)) {
-					Send "^{F7}"
-				}
-			}
-		}
-		Gdip_DisposeImage(pBMScreen)
-		;check to make sure you are not in dialog before reset
-		Loop 500
+
+
+		; Here we check for all UI elements which can still be here from other tasks/lag.
+
+		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|" windowHeight)
+
+		; Yes/No prompt and Feed window: their bitmaps are text from the old Roblox font, so read the middle of the screen with OCR
+		mx := Max(0, windowWidth//2 - 350), my := Max(0, windowHeight//2 - 250)
+		pBMMid := Gdip_CloneBitmapArea(pBMScreen, mx, my, Min(700, windowWidth - mx), Min(500, windowHeight - my))
+
+		for k, v in UIElements
 		{
-			GetRobloxClientPos(hwnd)
-			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-50 "|" windowY+2*windowHeight//3 "|100|" windowHeight//3)
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["dialog"], &pos, , , , , 10, , 3) != 1) {
-				Gdip_DisposeImage(pBMScreen)
-				break
-			}
-			Gdip_DisposeImage(pBMScreen)
-			MouseMove windowX+windowWidth//2, windowY+2*windowHeight//3+SubStr(pos, InStr(pos, ",")+1)-15
-			Click
-			Sleep 150
-		}
-		MouseMove windowX+350, windowY+offsetY+100
-		;check to make sure you are not in a yes/no prompt
-		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-		if (Gdip_ImageSearch(pBMScreen, bitmaps["no"], &pos, , , , , 2, , 3) = 1) {
-			MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
-			Click
-			MouseMove windowX+350, windowY+offsetY+100
-		}
-		Gdip_DisposeImage(pBMScreen)
-		;check to make sure you are not in feed window on accident
-		imgPos := nm_imgSearch("cancel.png",30)
-		If (imgPos[1] = 0){
-			MouseMove windowX+(imgPos[2]), windowY+(imgPos[3])
-			Click
-			MouseMove windowX+350, windowY+offsetY+100
-		}
-		;check to make sure you are not in blender screen
-		BlenderSS := Gdip_BitmapFromScreen(windowX+windowWidth//2 - 275 "|" windowY+Floor(0.48*windowHeight) - 220 "|550|400")
-		if (Gdip_ImageSearch(BlenderSS, bitmaps["CloseGUI"], , , , , , 5) > 0) {
-			MouseMove windowX+windowWidth//2 - 250, windowY+Floor(0.48*windowHeight) - 200
-			Sleep 150
-			click
-		}
-		Gdip_DisposeImage(BlenderSS)
-		;check to make sure you are not in sticker screen
-		pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2 - 275 "|" windowY+4*windowHeight//10-178 "|56|56")
-		if (Gdip_ImageSearch(pBMScreen, bitmaps["CloseGUI"], , , , , , 5) > 0) {
-			MouseMove windowX+windowWidth//2 - 250, windowY+4*windowHeight//10 - 150
-			sleep 150
-			click
-		}
-		Gdip_DisposeImage(pBMScreen)
-		;check to make sure you are not in shop before reset
-		searchRet := nm_imgSearch("e_button.png",30,"high")
-		If (searchRet[1] = 0) {
-			loop 2 {
-				shopG := nm_imgSearch("shop_corner_G.png",30,"right")
-				shopR := nm_imgSearch("shop_corner_R.png",30,"right")
-				If (shopG[1] = 0 || shopR[1] = 0) {
-					sendinput "{" SC_E " down}"
-					Sleep 100
-					sendinput "{" SC_E " up}"
-					Sleep 1000
-				}
+			if (k = "YesNoPrompt")
+				found := nm_OCRFindWord(pBMMid, "Yes") && nm_OCRFindWord(pBMMid, "No", &Pos) && (Pos := (StrSplit(Pos, ",")[1] + mx) "," (StrSplit(Pos, ",")[2] + my))
+			else if (k = "FeedWindow")
+				found := nm_OCRFindWord(pBMMid, "Feed") && Gdip_ImageSearch(pBMScreen, bitmaps[v.ToClose], &Pos)
+			else
+				found := Gdip_ImageSearch(pBMScreen, bitmaps[v.pBM]) && Gdip_ImageSearch(pBMScreen, bitmaps[v.ToClose], &Pos)
+			if found
+			{
+				pos := StrSplit(Pos, ",")
+				MouseMove(windowX + pos[1], windowY + pos[2])
+				Sleep(30)
+
+				if v.SpamClick
+					Loop 50
+						Click()
+				else
+					Click()
 			}
 		}
-		;check to make sure there is not a window open
-		searchRet := nm_imgSearch("close.png",30,"full")
-		If (searchRet[1] = 0) {
-			MouseMove windowX+searchRet[2],windowY+searchRet[3]
-			click
-			MouseMove windowX+350, windowY+offsetY+100
-			Sleep 1000
-		}
-		;check to make sure there is no Memory Match
-		nm_SolveMemoryMatch()
 
-		nm_setStatus("Resetting", "Character " . Mod(A_Index, 10))
-		MouseMove windowX+350, windowY+offsetY+100
-		PrevKeyDelay:=A_KeyDelay
-		SetKeyDelay 250+KeyDelay
+		Gdip_DisposeImage(pBMMid), Gdip_DisposeImage(pBMScreen)
+		nm_SolveMemoryMatch() ; if theres a mem match open solve it before continuing
 
-		resetTime:=nowUnix()
+		nm_setStatus("Resetting", "Character " A_Index)
+		resetTime := nowUnix()
 		PostSubmacroMessage("background", 0x5554, 1, resetTime)
 
-		;reset
-		ActivateRoblox()
-		GetRobloxClientPos()
+		PrevKeyDelay := A_KeyDelay
+		SetKeyDelay(PrevKeyDelay+200)
 		send "{" SC_Esc "}{" SC_R "}{" SC_Enter "}"
-		n := 0
-		while ((n < 2) && (A_Index <= 80)) {
-			Sleep 100
-			pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|50")
-			n += ((Gdip_ImageSearch(pBMScreen, bitmaps["emptyhealth"], , , , , , 10) || nm_HealthBar()) = (n = 0))
-			Gdip_DisposeImage(pBMScreen)
+		SetKeyDelay(KeyDelay)
+		Sleep 3500 * (a_index) ; Any reset spamming caused by a break in nm_healthdetection will eventually fix itself
+
+		; Temporarily removed
+		; n := 0
+		; loop 80
+		; {
+		; 	pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|50")
+		; 	dead := nm_HealthBar()
+		; 	;0=alive 8 ALIVE FRAMES
+		; 	dead ? n++ : n := 0
+		; 	Gdip_DisposeImage(pBMScreen)
+		; 	if n >= 4
+		; 		break
+		; }
+		
+		if nm_ConfirmAtHive()
+		{
+			if (nm_SetHiveCameraDirection() > 0)
+			{
+				HiveConfirmed := 1
+				break
+			}
 		}
+		else
+			nm_setStatus("Warning", "Hive prompt not found after reset " A_Index " (see tools\OCR_debug\hive_fail.png)")
 
-		SetKeyDelay PrevKeyDelay
+		; Dully's Hivecheck for if we spawn at baseplate
 
-		; Nate's quick fix for laggy pcs - Will be removed soon
-		Sleep 2000 + 1000 * A_Index
-
-		; hive check
-		if !atHive() && nm_DetectSpawn() {
+		if nm_DetectSpawn() 
+		{
 			Sleep 500
 			GetRobloxClientPos(hwnd)
 			MouseMove windowX+350, windowY+offsetY+100
@@ -11206,55 +12575,87 @@ nm_Reset(checkAll:=1, wait:=2000, convert:=1, force:=0){
 			KeyWait "F14", "T20 L"
 			nm_endWalk()
 			sleep 500
-			if atHive()
-				HiveConfirmed := 1
-		} else {
-			nm_SetHiveCameraDirection(4)
-		}
+			break
+		} 
 	}
-	;convert
-	(convert=1) && nm_convert()
-	;ensure minimum delay has been met
-	if((nowUnix()-resetTime)<wait) {
-		remaining:=floor((wait-(nowUnix()-resetTime))/1000) ;seconds
-		if(remaining>5){
+
+	if convert = 1 
+		nm_convert()
+
+	; add back wait here my fault
+	if ((nowUnix() - resetTime) < wait)
+	{
+		remaining := Floor((wait-(nowUnix()-resetTime))/1000) ;seconds
+		if remaining>5
+		{
 			Sleep 1000
 			nm_setStatus("Waiting", remaining . " Seconds")
-			Sleep (remaining-1)*1000
+			Sleep((remaining-1)*1000)
 		}
-		else {
-			Sleep (remaining*1000) ;miliseconds
-		}
+		else
+			Sleep(remaining*1000)
 	}
 
-	atHive() {
-		ActivateRoblox()
-		GetRobloxClientPos()
-		pBMScreen := Gdip_BitmapFromScreen(windowX + windowWidth // 2 - 150 "|" windowY + GetYOffset() + 40 "|350|60")
-		success := (Gdip_ImageSearch(pBMScreen, bitmaps["colhey"],,,,,,5) = 1)
-		Gdip_DisposeImage(pBMScreen)
 
-		return success
-	}
+	return hiveconfirmed
 }
-nm_HealthBar() { 
-	local detection := 0
-	static isDead(c) =>   ((((c) & 0x00FF0000 >= 0x004D0000) && ((c) & 0x00FF0000 <= 0x00830000)) ; 4D4D4D-blackBG|838383-whiteBG
-						&& (((c) & 0x0000FF00 >= 0x00004D00) && ((c) & 0x0000FF00 <= 0x00008300))
-						&& (((c) & 0x000000FF >= 0x0000004D) && ((c) & 0x000000FF <= 0x00000083)))
-	GetRobloxClientPos()
-	pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth-100 "|" windowY+24 "|50|20")
-	if isDead(Gdip_GetPixel(pBMScreen, 25, 12))
-		detection:=1
-	Gdip_DisposeImage(pBMScreen)
-	return detection
+isHoneycomb(h, s, v)
+{
+    ; h = 0-360
+    ; s = 0-100
+    ; v = 0-100
+
+    return (
+        h >= 20 && h <= 55    ; orange/yellowbrown hue
+        && s >= 50            ;  saturated
+        && v >= 20 && v <= 85 ; not too bright
+    )
+}
+nm_HealthBar()
+{
+    GetRobloxClientPos()
+
+    pBM := Gdip_BitmapFromScreen(windowX+windowWidth-100 "|" windowY+24 "|50|20")
+
+    Gdip_LockBits(pBM, 0, 0, 50, 20, &Stride, &Scan0, &BitmapData, 1)
+
+    grey := 0
+    y := 15
+
+    Loop 20
+    {
+        x := 2 + (A_Index-1)*2
+
+        c := NumGet(Scan0 + y*Stride + x*4, "UInt")
+
+        b := c & 255
+        g := (c >> 8) & 255
+        r := (c >> 16) & 255
+
+        grey += Abs(r-g) < 20 && Abs(r-b) < 20 && Abs(g-b) < 20
+    }
+
+    Gdip_UnlockBits(pBM, BitmapData)
+    Gdip_DisposeImage(pBM)
+
+    return grey > 20
 }
 nm_ConfirmAtHive(){
+	; offsetY was never set in this function (an unset variable, silenced by #Warn VarUnset Off and the
+	; error handler), so the check area ignored the GUI offset and the window's position: it only lined up
+	; for fullscreen Roblox with offset 0, and missed the prompt for everyone else -> endless resets
+	GetRobloxClientPos(), offsetY := GetYOffset()
 	pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-	if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["collectpollen"], , , , , , 2, , 2) = 1)){
+	; the prompt bitmaps are text from the old Roblox font, so OCR the prompt too ("Make Honey", "Collect Honey"...)
+	if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["colhey"], , , , , , 2, , 2) = 1)
+		|| nm_OCRFindPhrase(pBMScreen, ["makehoney", "collecthoney", "makinghoney", "collectpollen"], 2)){
 		Gdip_DisposeImage(pBMScreen)
 		return 1
 	}
+	; keep a snapshot of what was checked (at most once a minute) for diagnosing reset loops
+	static lastDump := 0
+	if (A_TickCount - lastDump > 60000)
+		lastDump := A_TickCount, nm_OCR_SaveDebug(pBMScreen, 0, "hive_fail")
 	Gdip_DisposeImage(pBMScreen)
 	return 0
 }
@@ -11266,7 +12667,7 @@ nm_DetectSpawn() { ; some of the code was from hive check, repurposing it here s
 		send("{" ZoomIn "}"), Sleep(50)
 
 	sconf := windowWidth**2//3200
-    spawnConfirmed := 0
+	spawnConfirmed := 0
 
 	loop 4 {
 		sleep 250
@@ -11328,30 +12729,100 @@ nm_spawnMoveTo(moves) {
     }
     return script
 }
-nm_SetHiveCameraDirection(rotations){
-	global HiveConfirmed
-	static hivedown := 0
-	if hivedown
-		sendinput "{" RotDown "}"
-	region := windowX "|" windowY+3*windowHeight//4 "|" windowWidth "|" windowHeight//4
-	sconf := windowWidth**2//3200
-	loop (maxindex := 8/rotations*2) { ; 2 full rotations
-		sleep 250+KeyDelay
-		pBMScreen := Gdip_BitmapFromScreen(region), s := 0
-		for i, k in bitmaps["hive"] {
-			s := Max(s, Gdip_ImageSearch(pBMScreen, k, , , , , , 4, , , sconf))
-			if (s >= sconf) {
-				Gdip_DisposeImage(pBMScreen)
-				HiveConfirmed := 1
-				sendinput "{" RotRight " 4}" (hivedown ? ("{" RotUp "}") : "")
-				Send "{" ZoomOut " 5}"
-				return 1
-			}
+nm_SetHiveCameraDirection(){
+    global HiveConfirmed
+
+	; Turns the camera until the honeycomb is in front of it, then turns it to the walking direction.
+	; Every check and the final turn wait for the camera to stop moving first: Roblox animates each turn, so
+	; checking or walking straight after a key press reads/uses a camera that is still part-way through turning.
+
+	GetRobloxClientPos()
+
+	Send "{" RotRight " 4}"
+	WaitCameraStill(250, 2500)
+	if HoneycombInView()
+	{
+		ResetCampos()
+		return 1
+	}
+
+    loop 16 ; allow 2 full rots before exit
+    {
+		Send "{" RotRight "}"
+		WaitCameraStill(120, 1200)
+		if HoneycombInView()
+		{
+			ResetCampos()
+			HiveConfirmed := 1
+			return 1
 		}
-		Gdip_DisposeImage(pBMScreen)
-		sendinput "{" RotRight " " rotations "}" ((maxindex/2 = A_Index) ? ("{" ((hivedown := !hivedown) ? RotDown : RotUp) "}") : "")
+    }
+	; Honeycomb never recognised (hive skins, night lighting...). We are at the hive (the prompt was found),
+	; and after 20 single turns the camera faces the hive again, so the usual final turn restores the standard
+	; post-reset camera direction. Accept that instead of resetting again and again.
+	nm_setStatus("Warning", "Hive not recognised by camera, using default direction")
+	ResetCampos()
+	HiveConfirmed := 1
+	return 1
+
+	ResetCampos()
+	{
+		Send "{" RotRight " 4}" ; Send (not SendInput) so the key delay applies and every press registers
+		Send "{" ZoomOut " 5}"
+		WaitCameraStill(300, 3000) ; don't hand back to walking until the turn has finished
+	}
+
+	; checked only after WaitCameraStill, so a frame caught mid-turn can't confirm it
+	HoneycombInView()
+	{
+		GetRobloxClientPos()
+		return (CheckHoneycomb() > 0)
+	}
+
+    CheckHoneycomb()
+	{
+		pBM := Gdip_BitmapFromScreen((windowX + (windowWidth - windowHeight//4)//2) "|" (windowY + windowHeight*5//8) "|" (windowHeight//4) "|" (windowHeight//4))
+
+		Avg := AverageColorFromImage(pBM)
+		Gdip_DisposeImage(pBM)
+		HSV := ARGBToHSV(Avg)
+		return isHoneycomb(HSV.h, HSV.s, HSV.v)
+	}
+
+	; waits until two frames in a row look the same (camera stopped turning), or until timeout ms
+	WaitCameraStill(minWait := 150, timeout := 2000)
+	{
+		Sleep minWait
+		start := A_TickCount, prev := 0, still := 0
+		while (A_TickCount - start < timeout)
+		{
+			GetRobloxClientPos()
+			if (windowWidth < 100 || windowHeight < 100)
+				return
+			pBM := Gdip_BitmapFromScreen(windowX + windowWidth//4 "|" windowY + windowHeight//4 "|" windowWidth//2 "|" windowHeight//2)
+			pSmall := Gdip_ResizeBitmap(pBM, 8, 8, 6)
+			Gdip_DisposeImage(pBM)
+			if !pSmall
+				return
+			cur := []
+			Loop 64
+				cur.Push(Gdip_GetPixel(pSmall, Mod(A_Index - 1, 8), (A_Index - 1)//8))
+			Gdip_DisposeImage(pSmall)
+			if prev {
+				diff := 0
+				for i, c in cur
+					diff += Abs(((c >> 16) & 255) - ((prev[i] >> 16) & 255)) + Abs(((c >> 8) & 255) - ((prev[i] >> 8) & 255)) + Abs((c & 255) - (prev[i] & 255))
+				; bees flying around barely move an 8x8 average; a turning camera moves it a lot
+				still := (diff / 64 < 12) ? still + 1 : 0
+				if (still >= 2)
+					return
+			}
+			prev := cur
+			Sleep 60
+		}
 	}
 }
+
 nm_setShiftLock(state, *){
 	global bitmaps, SC_LShift, ShiftLockEnabled
 
@@ -11396,7 +12867,7 @@ nm_AmuletPrompt(decision:=0, type:=0, *){
 	Prev_ShiftLock := ShiftLockEnabled
 	nm_setShiftLock(0)
 
-	GetRobloxClientPos()
+	GetRobloxClientPos(), offsetY := GetYOffset()
 	if (windowWidth = 0)
 		return 2
 	else
@@ -11434,7 +12905,7 @@ nm_AmuletPrompt(decision:=0, type:=0, *){
 			Loop 25
 			{
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY "|500|" windowHeight)
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1)
+				if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1)
 				{
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+SubStr(pos, InStr(pos, ",")+1), 5
 					Click
@@ -11468,7 +12939,7 @@ nm_AmuletPrompt(decision:=0, type:=0, *){
 }
 nm_FindItem(chosenItem, *) {
 	global shiftLockEnabled, bitmaps
-	static items := ["Cog", "Ticket", "SprinklerBuilder", "BeequipCase", "Gumdrops", "Coconut", "Stinger", "Snowflake", "MicroConverter", "Honeysuckle", "Whirligig", "FieldDice", "SmoothDice", "LoadedDice", "JellyBeans", "RedExtract", "BlueExtract", "Glitter", "Glue", "Oil", "Enzymes", "TropicalDrink", "PurplePotion", "SuperSmoothie", "MarshmallowBee", "Sprout", "MagicBean", "FestiveBean", "CloudVial", "NightBell", "BoxOFrogs", "AntPass", "BrokenDrive", "7ProngedCog", "RoboPass", "Translator", "SpiritPetal", "Present", "Treat", "StarTreat", "AtomicTreat", "SunflowerSeed", "Strawberry", "Pineapple", "Blueberry", "Bitterberry", "Neonberry", "MoonCharm", "GingerbreadBear", "AgedGingerbreadBear", "WhiteDrive", "RedDrive", "BlueDrive", "GlitchedDrive", "ComfortingVial", "InvigoratingVial", "MotivatingVial", "RefreshingVial", "SatisfyingVial", "PinkBalloon", "RedBalloon", "WhiteBalloon", "BlackBalloon", "SoftWax", "HardWax", "CausticWax", "SwirledWax", "Turpentine", "PaperPlanter", "TicketPlanter", "FestivePlanter", "PlasticPlanter", "CandyPlanter", "RedClayPlanter", "BlueClayPlanter", "TackyPlanter", "PesticidePlanter", "HeatTreatedPlanter", "HydroponicPlanter", "PetalPlanter", "ThePlanterOfPlenty", "BasicEgg", "SilverEgg", "GoldEgg", "DiamondEgg", "MythicEgg", "StarEgg", "GiftedSilverEgg", "GiftedGoldEgg", "GiftedDiamondEgg", "GiftedMythicEgg", "RoyalJelly", "StarJelly", "BumbleBeeEgg", "BumbleBeeJelly", "RageBeeJelly", "ShockedBeeJelly"]
+	#Include "%A_ScriptDir%\..\lib\data\ItemArray.ahk"
 	GetRobloxClientPos()
 	DetectHiddenWindows 1
 	if windowWidth == 0 {
@@ -13228,7 +14699,7 @@ nm_StickerPrinter(){
 				loop 16 {
 					sleep 250
 					pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-					if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+					if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 						MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1)-50, windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 						sleep 150
 						Click
@@ -13287,32 +14758,22 @@ nm_StickerStack(){
 				sendinput "{" SC_E " up}"
 				sleep 500 ;//todo: wait for GUI with timeout instead of fixed time
 
-				; detect stack boost time
+				; detect stack boost time (OCR reads the mm:ss in the "Your Stack Boost" panel; retried in case the menu is still opening)
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-275 "|" windowY+4*windowHeight//10 "|550|220")
-				Loop 1 {
-					if (Gdip_ImageSearch(pBMScreen, bitmaps["stickerstackdigits"][")"], &pos, 275, , , 45, 20) = 1) {
-						x := SubStr(pos, 1, InStr(pos, ",")-1)
-						(digits := Map()).Default := ""
-						Loop 10 {
-							n := 10-A_Index
-							Gdip_ImageSearch(pBMScreen, bitmaps["stickerstackdigits"][n], &pos, x, , , 45, 20, , , 4, , "`n")
-							Loop Parse pos, "`n"
-								if (A_Index & 1)
-									digits[Integer(A_LoopField)] := n
-						}
-
-						num := ""
-						for x,y in digits
-							num .= y
-
-						if ((StrLen(num) = 4) && (SubStr(num, 4) = "0")) { ; check valid time before updating
-							nm_setStatus("Detected", "Stack Boost Time: " hmsFromSeconds(time := 60 * SubStr(num, 1, 2) + SubStr(num, 3)))
-							if (StickerStackMode = 0)
-								StickerStackTimer := time
-							break
-						}
+				Loop 3 {
+					if ((time := nm_OCRReadTime(pBMScreen, 275, "stickerstack_fail")) != "") {
+						nm_setStatus("Detected", "Stack Boost Time: " hmsFromSeconds(time))
+						if (StickerStackMode = 0)
+							StickerStackTimer := time
+						break
 					}
-					nm_setStatus("Error", "Unable to detect Stack Boost time!")
+					if (A_Index = 3) {
+						nm_setStatus("Error", "Unable to detect Stack Boost time!")
+						break
+					}
+					Sleep 400
+					Gdip_DisposeImage(pBMScreen)
+					pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-275 "|" windowY+4*windowHeight//10 "|550|220")
 				}
 
 				; check if sticker is available to donate
@@ -13345,7 +14806,7 @@ nm_StickerStack(){
 				loop 16 {
 					sleep 250
 					pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-					if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+					if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 						MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1)-50, windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 						sleep 150
 						Click
@@ -16832,7 +18293,7 @@ nm_GoGather(){
 
 			Send "{ " RotDown " 10}{ " RotUp " 7}{" ZoomIn " 10}"
 
-			if !nm_SetHiveCameraDirection(1)
+			if !nm_SetHiveCameraDirection()
 				nm_setStatus("Warning", "Unable to confirm hive!")
 			
 			LastWhirligig:=nowUnix()
@@ -17126,7 +18587,7 @@ nm_convert(){
 		Gdip_DisposeImage(pBMScreen)
 		return
 	}
-	if (Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) {
+	if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) || nm_OCRMakeHoney(pBMScreen)) {
 		SendInput "{" SC_E " down}"
 		Sleep 100
 		SendInput "{" SC_E " up}"
@@ -17160,7 +18621,7 @@ nm_convert(){
 			}
 			GetRobloxClientPos(hwnd)
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY+36 "|" windowWidth//2+200 "|" windowHeight-offsetY-36)
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , 400, 120, 2, , 2) = 1) {
+			if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , 400, 120, 2, , 2) = 1) || nm_OCRMakeHoney(pBMScreen)) {
 				SendInput "{" SC_E " down}"
 				Sleep 100
 				SendInput "{" SC_E " up}"
@@ -17230,7 +18691,7 @@ nm_convert(){
 					click
 				}
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY+36 "|" windowWidth//2+200 "|" windowHeight-offsetY-36)
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , 400, 120, 2, , 2) = 1) {
+				if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , 400, 120, 2, , 2) = 1) || nm_OCRMakeHoney(pBMScreen)) {
 					SendInput "{" SC_E " down}"
 					Sleep 100
 					SendInput "{" SC_E " up}"
@@ -18863,9 +20324,22 @@ nm_PolarQuestProg(){
 
 	hwnd := GetRobloxHWND()
 	offsetY := GetYOffset(hwnd)
+	; the quest log images are text from the old Roblox font, so also look for the quest with OCR:
+	; "Polar Bear" or any Polar Bear quest title
+	polarNames := ["Polar Bear"]
+	for k in PolarBear
+		polarNames.Push(k)
 	;search for polar quest
 	Loop 70
 	{
+		GetRobloxClientPos(hwnd)
+		if (ocrFound := nm_OCRMatchNames(polarNames, 0, 150, 310, Max(560, windowHeight-100) - 150, windowX, windowY)) {
+			Qfound := [0, ocrFound[2], ocrFound[3]]
+			if (A_Index > 1)
+				Gdip_DisposeImage(pBMLog)
+			break
+		}
+
 		Qfound:=nm_imgSearch("polar_bear.png",50,"quest")
 		if (Qfound[1]=0) {
 			if (A_Index > 1)
@@ -18940,17 +20414,24 @@ nm_PolarQuestProg(){
 			MsgBox "Folder location cannot be found:`n" A_WorkingDir "\nm_image_assets\"
 		}
 		PolarStart:=(result = 1) ? [0, FoundX-windowX, FoundY-windowY] : [1, 0, 0]
-		;determine Quest name
+		;determine Quest name (OCR first, quest name images as a fallback)
+		ocrName := nm_OCRMatchNames(polarNames, 0, PolarStart[3]-30, 306, 30, windowX, windowY)
+		ocrKey := (ocrName && ocrName[1] > 1) ? polarNames[ocrName[1]] : ""
 		xi := windowX
 		yi := windowY+PolarStart[3]-30
 		ww := windowX+306
 		wh := windowY+PolarStart[3]
 		for key, value in PolarBear {
 			filename:=(key . ".png")
-			try
-				result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*10 nm_image_assets\" fileName)
-			catch
-				result := 0
+			if (ocrKey != "")
+				result := (key = ocrKey)
+			else
+			{
+				try
+					result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*10 nm_image_assets\" fileName)
+				catch
+					result := 0
+			}
 			if(result = 1) {
 				PolarQuest:=key
 				questSteps:=PolarBear[key].Length
@@ -20146,46 +21627,31 @@ nm_Feed(food){
 	Loop 10
 	{
 		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" (54*windowWidth)//100-50 "|" Max(480, windowHeight-offsetY-150))
-
 		if (A_Index = 1)
 		{
-			; wait for red vignette effect to disappear
-			Loop 40
+			; wait for the item menu to draw (OCR, replaces the old bitmaps["item"] check)
+			if !nm_InventoryWaitReady(hwnd, offsetY)
 			{
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["item"], , , , 6, , 2) = 1)
-					break
-				else
-				{
-					if (A_Index = 40)
-					{
-						Gdip_DisposeImage(pBMScreen)
-						nm_setStatus("Missing", food)
-						return 0
-					}
-					else
-					{
-						Sleep 50
-						Gdip_DisposeImage(pBMScreen)
-						pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" (54*windowWidth)//100-50 "|" Max(480, windowHeight-offsetY-150))
-					}
-				}
+				nm_setStatus("Missing", food)
+				return 0
 			}
 		}
+		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" (54*windowWidth)//100-50 "|" Max(480, windowHeight-offsetY-150))
 
-		if ((Gdip_ImageSearch(pBMScreen, bitmaps[food], &pos, , , 306, , 10, , 5) != 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["feed"], , (54*windowWidth)//100-300, , , , 2, , 2) = 1)) {
+		pos := nm_OCRFindItem(pBMScreen, food) ; OCR item name search
+		if ((pos = "") || (nm_OCRFindWord(pBMScreen, "Feed", , (54*windowWidth)//100-300) = 1)) {
 			Gdip_DisposeImage(pBMScreen)
 			break
 		}
 		Gdip_DisposeImage(pBMScreen)
 
-		MouseClickDrag "Left", windowX+30, windowY+SubStr(pos, InStr(pos, ",")+1)+190, windowX+windowWidth//2, windowY+41*windowHeight//100-10*(A_Index-1), 5
+		MouseClickDrag "Left", windowX+30, windowY+pos+190, windowX+windowWidth//2, windowY+41*windowHeight//100-10*(A_Index-1), 5
 		Sleep 500
 	}
 	Loop 20 {
 		Sleep 100
 		pBMScreen := Gdip_BitmapFromScreen(windowX+(54*windowWidth)//100-300 "|" windowY+offsetY+(46*windowHeight)//100-59 "|250|100")
-		if (Gdip_ImageSearch(pBMScreen, bitmaps["feed"], &pos, , , , , 2, , 2) = 1) {
+		if (nm_OCRFindWord(pBMScreen, "Feed", &pos) = 1) {
 			Gdip_DisposeImage(pBMScreen)
 			MouseMove windowX+(54*windowWidth)//100-300+SubStr(pos, 1, InStr(pos, ",")-1)+140, windowY+offsetY+(46*windowHeight)//100-59+SubStr(pos, InStr(pos, ",")+1)+5 ; Number
 			Sleep 100
@@ -21423,42 +22889,27 @@ ba_placePlanter(fieldName, planter, planterNum, atField:=0){
 	Loop 10
 	{
 		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
-
 		if (A_Index = 1)
 		{
-			; wait for red vignette effect to disappear
-			Loop 40
+			; wait for the item menu to draw (OCR, replaces the old bitmaps["item"] check)
+			if !nm_InventoryWaitReady(hwnd, offsetY)
 			{
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["item"], , , , 6, , 2) = 1)
-					break
-				else
-				{
-					if (A_Index = 40)
-					{
-						Gdip_DisposeImage(pBMScreen)
-						nm_setStatus("Missing", planterName)
-						LostPlanters.=planterName
-						ba_saveConfig_()
-						return 0
-					}
-					else
-					{
-						Sleep 50
-						Gdip_DisposeImage(pBMScreen)
-						pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
-					}
-				}
+				nm_setStatus("Missing", planterName)
+				LostPlanters.=planterName
+				ba_saveConfig_()
+				return 0
 			}
 		}
+		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
-		if ((Gdip_ImageSearch(pBMScreen, bitmaps[planterName], &planterPos, , , 306, , 10, , 5) != 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], , windowWidth//2-250, , , , 2, , 2) = 1)) {
+		planterPos := nm_OCRFindItem(pBMScreen, planterName) ; OCR item name search
+		if ((planterPos = "") || (nm_OCRFindWord(pBMScreen, "Yes", , windowWidth//2-250) = 1)) {
 			Gdip_DisposeImage(pBMScreen)
 			break
 		}
 		Gdip_DisposeImage(pBMScreen)
 
-		MouseClickDrag "Left", windowX+30, windowY+SubStr(planterPos, InStr(planterPos, ",")+1)+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
+		MouseClickDrag "Left", windowX+30, windowY+planterPos+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
 		Sleep 200
 	}
 	Loop 50
@@ -21466,7 +22917,7 @@ ba_placePlanter(fieldName, planter, planterNum, atField:=0){
 		GetRobloxClientPos(hwnd)
 		loop 3 {
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+			if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 				MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 				Sleep 150
 				Click
@@ -21590,7 +23041,7 @@ ba_harvestPlanter(planterNum){
 		if ((HarvestFullGrown = 1) && !PlanterHarvestNow%planterNum%) {
 			loop 3 {
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["no"], &pos, , , , , 2, , 3) = 1) {
+				if (nm_OCRFindWord(pBMScreen, "No", &pos) = 1) {
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 					Sleep 150
 					Click
@@ -21606,7 +23057,7 @@ ba_harvestPlanter(planterNum){
 		else {
 			loop 3 {
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+				if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 					Sleep 150
 					Click
@@ -21929,40 +23380,25 @@ mp_PlantPlanter(PlanterIndex) {
 	Loop 10
 	{
 		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
-
 		if (A_Index = 1)
 		{
-			; wait for red vignette effect to disappear
-			Loop 40
+			; wait for the item menu to draw (OCR, replaces the old bitmaps["item"] check)
+			if !nm_InventoryWaitReady(hwnd, offsetY)
 			{
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["item"], , , , 6, , 2) = 1)
-					break
-				else
-				{
-					if (A_Index = 40)
-					{
-						Gdip_DisposeImage(pBMScreen)
-						nm_setStatus("Missing", MPlanterName)
-						return 0
-					}
-					else
-					{
-						Sleep 50
-						Gdip_DisposeImage(pBMScreen)
-						pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
-					}
-				}
+				nm_setStatus("Missing", MPlanterName)
+				return 0
 			}
 		}
+		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
-		if ((Gdip_ImageSearch(pBMScreen, bitmaps[MPlanterName], &planterPos, , , 306, , 10, , 5) != 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], , windowWidth//2-250, , , , 2, , 2) = 1)) {
+		planterPos := nm_OCRFindItem(pBMScreen, MPlanterName) ; OCR item name search
+		if ((planterPos = "") || (nm_OCRFindWord(pBMScreen, "Yes", , windowWidth//2-250) = 1)) {
 			Gdip_DisposeImage(pBMScreen)
 			break
 		}
 		Gdip_DisposeImage(pBMScreen)
 
-		MouseClickDrag "Left", windowX+30, windowY+SubStr(planterPos, InStr(planterPos, ",")+1)+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
+		MouseClickDrag "Left", windowX+30, windowY+planterPos+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
 		Sleep 200
 	}
 	Loop 50
@@ -21970,7 +23406,7 @@ mp_PlantPlanter(PlanterIndex) {
 		GetRobloxClientPos(hwnd)
 		loop 3 {
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+			if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 				MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 				Sleep 150
 				Click
@@ -22078,40 +23514,25 @@ mp_UseGlitter(PlanterIndex, atField:=0) {
 	Loop 10
 	{
 		GetRobloxClientPos(hwnd)
-		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
-
 		if (A_Index = 1)
 		{
-			; wait for red vignette effect to disappear
-			Loop 40
+			; wait for the item menu to draw (OCR, replaces the old bitmaps["item"] check)
+			if !nm_InventoryWaitReady(hwnd, offsetY)
 			{
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["item"], , , , 6, , 2) = 1)
-					break
-				else
-				{
-					if (A_Index = 40)
-					{
-						Gdip_DisposeImage(pBMScreen)
-						nm_setStatus("Missing", "Glitter")
-						return 0
-					}
-					else
-					{
-						Sleep 50
-						Gdip_DisposeImage(pBMScreen)
-						pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|306|" Max(480, windowHeight-offsetY-150))
-					}
-				}
+				nm_setStatus("Missing", "Glitter")
+				return 0
 			}
 		}
+		pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|" windowWidth//2 "|" Max(480, windowHeight-offsetY-150))
 
-		if ((Gdip_ImageSearch(pBMScreen, bitmaps["glitter"], &glitterPos, , , 306, , 10, , 5) != 1)) {
+		glitterPos := nm_OCRFindItem(pBMScreen, "glitter") ; OCR item name search
+		if ((glitterPos = "")) {
 			Gdip_DisposeImage(pBMScreen)
 			break
 		}
 		Gdip_DisposeImage(pBMScreen)
 
-		MouseClickDrag "Left", windowX+30, windowY+SubStr(glitterPos, InStr(glitterPos, ",")+1)+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
+		MouseClickDrag "Left", windowX+30, windowY+glitterPos+190, windowX+windowWidth//2, windowY+windowHeight//2, 5
 		Sleep 200
 	}
 
@@ -22230,7 +23651,7 @@ mp_HarvestPlanter(PlanterIndex) {
 		if ((PlanterHarvestFull%PlanterIndex% == "Full") && !PlanterHarvestNow%PlanterIndex%) {
 			loop 3 {
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["no"], &pos, , , , , 2, , 3) = 1) {
+				if (nm_OCRFindWord(pBMScreen, "No", &pos) = 1) {
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 					Sleep 150
 					Click
@@ -22249,7 +23670,7 @@ mp_HarvestPlanter(PlanterIndex) {
 		else {
 			loop 3 {
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY+windowHeight//2-52 "|500|150")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["yes"], &pos, , , , , 2, , 2) = 1) {
+				if (nm_OCRFindWord(pBMScreen, "Yes", &pos) = 1) {
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1), windowY+windowHeight//2-52+SubStr(pos, InStr(pos, ",")+1)
 					Sleep 150
 					Click
