@@ -225,10 +225,11 @@ nm_OCRHasText(pBitmap, searchW := 306) {
 ; GUI OFFSET
 ; ---------------------------------------------------------------------------
 
-; The "Pollen" label in BSS's top bar is drawn in this colour (same colour the old toppollen bitmap used)
+; The top bar labels ("Pollen", "Honey") are dark text on a light box. The exact colour differs between PCs
+; (#121517 on one, #1B2A35 on another), so any dark pixel counts
 nm_OCR_IsLabelColor(argb) {
 	r := (argb >> 16) & 0xFF, g := (argb >> 8) & 0xFF, b := argb & 0xFF
-	return (Abs(r - 0x12) <= 20) && (Abs(g - 0x15) <= 20) && (Abs(b - 0x17) <= 20)
+	return (0.299*r + 0.587*g + 0.114*b < 80)
 }
 
 ; Finds the "Pollen" label at the top of the BSS window.
@@ -243,9 +244,12 @@ nm_OCRFindPollenLabel(winX, winY, winW, pass := 1, dump := 0) {
 	if (w < 40)
 		return ""
 	pBM := Gdip_BitmapFromScreen(winX + x0 "|" winY "|" w "|" h)
-	found := 0, bestD := 99
+	found := 0, bestD := 99, honeyWord := 0, isHoney := 0
 	if (result := nm_OCR_FromBitmap(pBM, nm_OCRConfig.OffsetScale, pass = 2)) {
 		for word in result.Words {
+			; the "Honey" label sits on the same top bar row, so it's a second anchor if "Pollen" isn't read
+			if (nm_OCR_MatchDistance("honey", nm_OCR_Norm(word.Text)) <= 1) && (!honeyWord || word.y < honeyWord.y - 4)
+				honeyWord := word
 			d := nm_OCR_MatchDistance("pollen", nm_OCR_Norm(word.Text))
 			; the top bar label is the topmost "Pollen" on screen: lower ones are other text, e.g. a
 			; "Collect Pollen" prompt at the hive, which would give a far too large offset
@@ -253,6 +257,8 @@ nm_OCRFindPollenLabel(winX, winY, winW, pass := 1, dump := 0) {
 				found := word, bestD := d
 		}
 	}
+	if !found && honeyWord
+		found := honeyWord, isHoney := 1
 	if !found {
 		if dump
 			nm_OCR_SaveDebug(pBM, result, "offset_fail")
@@ -279,8 +285,10 @@ nm_OCRFindPollenLabel(winX, winY, winW, pass := 1, dump := 0) {
 	Gdip_DisposeImage(pBM)
 	if (top = "")
 		top := found.y, bottom := found.y + found.h - 1
-	nm_OCR_Log("Pollen label rows " top "-" bottom " (pass " pass ", OCR box y=" found.y " h=" found.h ")")
-	return (top + bottom) / 2
+	nm_OCR_Log((isHoney ? "Honey" : "Pollen") " label rows " top "-" bottom " (pass " pass ", OCR box y=" found.y " h=" found.h ")")
+	; "Honey" has a descender (y), so only its top row is comparable: capital letters start 4.5 px above
+	; the label centre the offset formula uses
+	return isHoney ? top + 4.5 : (top + bottom) / 2
 }
 
 ; Natro's root folder (the one containing lib, settings, tools)
@@ -447,7 +455,7 @@ nm_OCRReadStack(pBM, x1, y1, x2, y2, maxVal := 10) {
 	; 0. picture match for "10" (only where 10 is the maximum, so "x100" can't be mistaken for it)
 	if (maxVal = 10) && nm_OCR_HasX10(pBM, x1, y1, x2, y2)
 		return 10
-	if (maxVal = 10) && ((n := nm_OCR_HasteDigit(pBM, x1, y1, x2, y2)) != "")
+	if (maxVal = 10) && ((n := nm_OCR_BuffDigit(pBM, x1, y1, x2, y2)) != "")
 		return n
 	; 1. context strip
 	sx1 := Max(0, x1 - 120), sx2 := Min(w, x2 + 120)
@@ -651,6 +659,31 @@ nm_OCR_HasteDigit(pBM, x1, y1, x2, y2) {
 	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
 	for d, pDigit in nm_OCR_HasteDigits()
 		try if (%fn%(pBM, pDigit, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 10), Min(h, y2 + 4), 60, 0xFF00FF) = 1)
+			return d
+	return ""
+}
+
+; Focus stack digits 2-9 in BSS's current buff font, cut from real captures of the Focus icon (each includes
+; the bit of icon around the digit, so they only match on the Focus icon). "." pixels are magenta and ignored.
+nm_OCR_FocusDigits() {
+	static digits := 0
+	if !digits
+	{
+		digits := Map()
+		for d, b64 in Map(9, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAXElEQVR4nIWQSQ6AMAwDxxb//7I5gEpogsihymqPSkgIHxFybPWzLIQAhVxZ0pS0nnItvTvCLwgNKNbY3q06Zpm75LPcbLEwhXTXbWWde581dc8Cxdwjfw3/fQcnFD8jDo6hMyAAAAAASUVORK5CYII=", 8, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAYElEQVR4nIWQSxKAMAhDXxjvf+W4sFpKP7IiwOQDxsZsyvgquB8LISBaX9YLDLZtzzAOJl61PetjJc4EnaMTCKEMo9y3ddL/V4kmkcSe93wzDQGmLEAMUy16lScopwPgBsOvNfjuarTmAAAAAElFTkSuQmCC", 7, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAV0lEQVR4nIWRQQoAMQgDJ7L//3L2sKVrIW29CBrHoBhzjOdLZqMUdQYA2jVsD0akj6IAShHTpoKPCfiGk1Mv0mp1d09zu35sZzRv93tUJC+KviHeXtfPvVm3IQZLKknhAAAAAElFTkSuQmCC", 6, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAXUlEQVR4nG2OQRKAMAwCl4z//zIeNLXUcEqXhiBjQIjWIs9Qg23wAtRgg/TBcv8/7MUjAzheAWyPTu39Qw2uY28dfWupM3I58iqQO2jPjY1fGUQFVc76Z5BNhyuTbjL4LAyzFGN7AAAAAElFTkSuQmCC", 5, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAY0lEQVR4nH1QQQ7AMAgC0/9/mR2cLZp1HhoRA1gIEoR7rd1JX3tEACD4pzFoskFBS5AvCZWqZjEtNJvwUPmSfL3kWt37yNCvvfxKJDdoDxeDSE6myOY6iqmhhk9fkJ5g2/vwAXKoJR0cukG0AAAAAElFTkSuQmCC", 4, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAXElEQVR4nH2RSxLAIAhDXxjvf+V0UdsRRNlhyAfE2JhzjfbVfCwRgFAPg1AU+B1ZK0qI2S6spDH1lXxjty++UWHVWHXbPdZ2D1/bBNm2gdGePO/S6fw0Y92/DXgA+SctB/wHrN0AAAAASUVORK5CYII=", 3, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAY0lEQVR4nHWQQRLAIAgDN4z//3J60GKLmAMDiZOAGBtzgfEo834shIBYfZGbGUqcbdtAJCs0zQoaatsLobhdcfUwFlomBhFFzpqIIp8YW/tsB8xTISNfn3PJ+LFqepX4/LTkH4y9NvmF9bLrAAAAAElFTkSuQmCC", 2, "iVBORw0KGgoAAAANSUhEUgAAAAsAAAAOCAIAAAB2A3HCAAAAY0lEQVR4nH2RSxYAEQwEuz33v3LNIn4xsEGq4xWEQOg+6rZv6WhxTziWgUnxHhsVWi16oqHA4uGE29lHzSgiAP/x5ntITF9LUnnjOU+bjJPUUNvcqxDOB+SHKwPcfscr8OlqH8KcQ+bFKtdbAAAAAElFTkSuQmCC")
+			digits[d] := Gdip_BitmapFromBase64(b64)
+	}
+	return digits
+}
+
+; stack number from the Haste or Focus digit pictures inside x1,y1-x2,y2 of pBM, or "" if none matches
+nm_OCR_BuffDigit(pBM, x1, y1, x2, y2) {
+	static fn := "Gdip_ImageSearch"
+	if ((d := nm_OCR_HasteDigit(pBM, x1, y1, x2, y2)) != "")
+		return d
+	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
+	for d, pDigit in nm_OCR_FocusDigits()
+		try if (%fn%(pBM, pDigit, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 12), Min(h, y2 + 4), 60, 0xFF00FF) = 1)
 			return d
 	return ""
 }
