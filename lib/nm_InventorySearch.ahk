@@ -50,7 +50,6 @@ nm_InventorySearch(item, direction:="down", prescroll:=0, prescrolldir:="", scro
 ; Screenshot of the inventory column (306 px wide, from 150 px below the GUI offset to the bottom of the window)
 nm_InventoryCapture(hwnd, offsetY) {
 	GetRobloxClientPos(hwnd)
-	nm_InventoryMouseAway()
 	return Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+150 "|306|" Max(40, windowHeight-offsetY-150))
 }
 
@@ -74,16 +73,4 @@ nm_InventoryWaitReady(hwnd, offsetY, tries:=20) {
 		Sleep 100
 	}
 	return 0
-}
-
-; In the item menu, the item under the mouse shows its description instead of its name, so OCR can't find it
-; by name. Moves the mouse just right of the item list (same height) if it's over the list.
-nm_InventoryMouseAway() {
-	GetRobloxClientPos()
-	CoordMode "Mouse", "Screen"
-	MouseGetPos &mx, &my
-	if (mx >= windowX - 5) && (mx < windowX + 330) {
-		MouseMove windowX + 350, my, 0
-		Sleep 120
-	}
 }
