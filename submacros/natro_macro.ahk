@@ -20949,7 +20949,8 @@ nm_createWalk(movement, name:="", vars:="") ; this function generates the 'walk'
 
 	; Roblox animates camera turns, so walking straight after a turn key goes in the wrong direction until the
 	; turn finishes. After every line that turns the camera, wait until the camera has stopped moving
-	movement := RegExReplace(movement, 'im)^([ \t]*send[ \t]+"[^\r\n]*\bRot(?:Left|Right|Up|Down)\b[^\r\n]*?)[ \t]*\r?$', "$1`r`nnm_WaitCameraStill()")
+	; (a line that also holds a movement key down, e.g. "{RotRight 3}{w down}", moves on purpose and is left alone)
+	movement := RegExReplace(movement, 'im)^(?![^\r\n]*Key " down\})([ \t]*send[ \t]*\(?[ \t]*"[^\r\n]*\bRot(?:Left|Right|Up|Down)\b[^\r\n]*?)[ \t]*\r?$', "$1`r`nnm_WaitCameraStill()")
 
 	script :=
 	(

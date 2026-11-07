@@ -145,12 +145,13 @@ ActivateRoblox()
 		return 1
 }
 
-; Waits until the camera has stopped turning: two frames in a row (the middle of the Roblox window, shrunk to 8x8)
-; look the same. Bees and particles barely change an 8x8 average; a turning camera changes it a lot.
-; Returns after timeout ms at the latest.
-nm_WaitCameraStill(minWait := 60, timeout := 1000) {
+; Waits until the camera has finished turning. Roblox can take a frame or two to start a turn after the key
+; press, so first it waits (up to 450 ms) to see the view start changing, then until two checks in a row
+; show it has stopped. "Changing" is measured on the middle of the Roblox window shrunk to 8x8: bees and
+; particles barely move that average, a turning camera moves it a lot. Returns after timeout ms at the latest.
+nm_WaitCameraStill(minWait := 40, timeout := 1500) {
 	Sleep minWait
-	start := A_TickCount, prev := 0, still := 0
+	start := A_TickCount, prev := 0, still := 0, moved := 0
 	while (A_TickCount - start < timeout)
 	{
 		GetRobloxClientPos()
@@ -169,11 +170,14 @@ nm_WaitCameraStill(minWait := 60, timeout := 1000) {
 			diff := 0
 			for i, c in cur
 				diff += Abs(((c >> 16) & 255) - ((prev[i] >> 16) & 255)) + Abs(((c >> 8) & 255) - ((prev[i] >> 8) & 255)) + Abs((c & 255) - (prev[i] & 255))
-			still := (diff / 64 < 12) ? still + 1 : 0
+			if (diff / 64 >= 12)
+				moved := 1, still := 0
+			else if (moved || A_TickCount - start > 450) ; only count stillness once the turn has started (or clearly never will)
+				still++
 			if (still >= 2)
 				return
 		}
 		prev := cur
-		Sleep 40
+		Sleep 30
 	}
 }
