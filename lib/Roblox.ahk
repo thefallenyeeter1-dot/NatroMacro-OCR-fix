@@ -144,3 +144,36 @@ ActivateRoblox()
 	else
 		return 1
 }
+
+; Waits until the camera has stopped turning: two frames in a row (the middle of the Roblox window, shrunk to 8x8)
+; look the same. Bees and particles barely change an 8x8 average; a turning camera changes it a lot.
+; Returns after timeout ms at the latest.
+nm_WaitCameraStill(minWait := 60, timeout := 1000) {
+	Sleep minWait
+	start := A_TickCount, prev := 0, still := 0
+	while (A_TickCount - start < timeout)
+	{
+		GetRobloxClientPos()
+		if (windowWidth < 100 || windowHeight < 100)
+			return
+		pBM := Gdip_BitmapFromScreen(windowX + windowWidth//4 "|" windowY + windowHeight//4 "|" windowWidth//2 "|" windowHeight//2)
+		pSmall := Gdip_ResizeBitmap(pBM, 8, 8, 6)
+		Gdip_DisposeImage(pBM)
+		if !pSmall
+			return
+		cur := []
+		Loop 64
+			cur.Push(Gdip_GetPixel(pSmall, Mod(A_Index - 1, 8), (A_Index - 1)//8))
+		Gdip_DisposeImage(pSmall)
+		if prev {
+			diff := 0
+			for i, c in cur
+				diff += Abs(((c >> 16) & 255) - ((prev[i] >> 16) & 255)) + Abs(((c >> 8) & 255) - ((prev[i] >> 8) & 255)) + Abs((c & 255) - (prev[i] & 255))
+			still := (diff / 64 < 12) ? still + 1 : 0
+			if (still >= 2)
+				return
+		}
+		prev := cur
+		Sleep 40
+	}
+}

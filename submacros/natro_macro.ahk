@@ -13256,6 +13256,7 @@ nm_testButton(*){
 		nm_CameraRotation(Dir, count) {
 			Static LR := 0, UD := 0, init := OnExit((*) => send("{" Rot%(LR > 0 ? "Left" : "Right")% " " Mod(Abs(LR), 8) "}{" Rot%(UD > 0 ? "Up" : "Down")% " " Abs(UD) "}"), -1)
 			send "{" Rot%Dir% " " count "}"
+			nm_WaitCameraStill()
 			Switch Dir,0 {
 				Case "Left": LR -= count
 				Case "Right": LR += count
@@ -20880,6 +20881,7 @@ nm_gather(pattern, index, patternsize:="M", reps:=1, facingcorner:=0){
 			nm_CameraRotation(Dir, count) {
 				Static LR := 0, UD := 0, init := OnExit((*) => send("{" Rot%(LR > 0 ? "Left" : "Right")% " " Mod(Abs(LR), 8) "}{" Rot%(UD > 0 ? "Up" : "Down")% " " Abs(UD) "}"), -1)
 				send "{" Rot%Dir% " " count "}"
+				nm_WaitCameraStill()
 				Switch Dir,0 {
 					Case "Left": LR -= count
 					Case "Right": LR += count
@@ -20944,6 +20946,10 @@ nm_createWalk(movement, name:="", vars:="") ; this function generates the 'walk'
 
 	if WinExist("ahk_pid " currentWalk.pid " ahk_class AutoHotkey")
 		nm_endWalk()
+
+	; Roblox animates camera turns, so walking straight after a turn key goes in the wrong direction until the
+	; turn finishes. After every line that turns the camera, wait until the camera has stopped moving
+	movement := RegExReplace(movement, 'im)^([ \t]*send[ \t]+"[^\r\n]*\bRot(?:Left|Right|Up|Down)\b[^\r\n]*?)[ \t]*\r?$', "$1`r`nnm_WaitCameraStill()")
 
 	script :=
 	(
