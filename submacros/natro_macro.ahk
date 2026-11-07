@@ -20608,9 +20608,22 @@ nm_RileyQuestProg(){
 
 	hwnd := GetRobloxHWND()
 	offsetY := GetYOffset(hwnd)
+	; the quest log images are text from the old Roblox font, so also look for the quest with OCR:
+	; "Riley Bee" or any of its quest titles
+	ocrNames := ["Riley Bee"]
+	for k in RileyBee
+		ocrNames.Push(k)
 	;search for riley quest
 	Loop 70
 	{
+		GetRobloxClientPos(hwnd)
+		if (ocrFound := nm_OCRMatchNames(ocrNames, 0, 150, 310, Max(560, windowHeight-100) - 150, windowX, windowY)) {
+			Qfound := [0, ocrFound[2], ocrFound[3]]
+			if (A_Index > 1)
+				Gdip_DisposeImage(pBMLog)
+			break
+		}
+
 		Qfound:=nm_imgSearch("riley.png",50,"quest")
 		if (Qfound[1]=0) {
 			if (A_Index > 1)
@@ -20678,17 +20691,24 @@ nm_RileyQuestProg(){
 			MsgBox "Folder location cannot be found:`n" A_WorkingDir "\nm_image_assets\"
 		}
 		RileyStart:=(result = 1) ? [0, FoundX-windowX, FoundY-windowY] : [1, 0, 0]
-		;determine Quest name
+		;determine Quest name (OCR first, quest name images as a fallback)
+		ocrName := nm_OCRMatchNames(ocrNames, 0, RileyStart[3]-30, 306, 30, windowX, windowY)
+		ocrKey := (ocrName && ocrName[1] > 1) ? ocrNames[ocrName[1]] : ""
 		xi := windowX
 		yi := windowY+RileyStart[3]-30
 		ww := windowX+306
 		wh := windowY+RileyStart[3]
 		for key, value in RileyBee {
 			filename:=(key . ".png")
-			try
-				result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
-			catch
-				result := 0
+			if (ocrKey != "")
+				result := (key = ocrKey)
+			else
+			{
+				try
+					result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
+				catch
+					result := 0
+			}
 			if(result = 1) {
 				RileyQuest:=key
 				questSteps:=RileyBee[key].Length
@@ -20884,9 +20904,22 @@ nm_BuckoQuestProg(){
 
 	hwnd := GetRobloxHWND()
 	offsetY := GetYOffset(hwnd)
+	; the quest log images are text from the old Roblox font, so also look for the quest with OCR:
+	; "Bucko Bee" or any of its quest titles
+	ocrNames := ["Bucko Bee"]
+	for k in BuckoBee
+		ocrNames.Push(k)
 	;search for bucko quest
 	Loop 70
 	{
+		GetRobloxClientPos(hwnd)
+		if (ocrFound := nm_OCRMatchNames(ocrNames, 0, 150, 310, Max(560, windowHeight-100) - 150, windowX, windowY)) {
+			Qfound := [0, ocrFound[2], ocrFound[3]]
+			if (A_Index > 1)
+				Gdip_DisposeImage(pBMLog)
+			break
+		}
+
 		Qfound:=nm_imgSearch("bucko.png",50,"quest")
 		if (Qfound[1]=0) {
 			if (A_Index > 1)
@@ -20954,17 +20987,24 @@ nm_BuckoQuestProg(){
 			MsgBox "Folder location cannot be found:`n" A_WorkingDir "\nm_image_assets\"
 		}
 		BuckoStart:=(result = 1) ? [0, FoundX-windowX, FoundY-windowY] : [1, 0, 0]
-		;determine Quest name
+		;determine Quest name (OCR first, quest name images as a fallback)
+		ocrName := nm_OCRMatchNames(ocrNames, 0, BuckoStart[3]-30, 306, 30, windowX, windowY)
+		ocrKey := (ocrName && ocrName[1] > 1) ? ocrNames[ocrName[1]] : ""
 		xi := windowX
 		yi := windowY+BuckoStart[3]-30
 		ww := windowX+306
 		wh := windowY+BuckoStart[3]
 		for key, value in BuckoBee {
 			filename:=(key . ".png")
-			try
-				result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
-			catch
-				result := 0
+			if (ocrKey != "")
+				result := (key = ocrKey)
+			else
+			{
+				try
+					result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
+				catch
+					result := 0
+			}
 			if(result = 1) {
 				BuckoQuest:=key
 				questSteps:=BuckoBee[key].Length
@@ -21156,9 +21196,22 @@ nm_BlackQuestProg(){
 
 	hwnd := GetRobloxHWND()
 	offsetY := GetYOffset(hwnd)
+	; the quest log images are text from the old Roblox font, so also look for the quest with OCR:
+	; "Black Bear" or any of its quest titles
+	ocrNames := ["Black Bear"]
+	for k in BlackBear
+		ocrNames.Push(k)
 	;search for black quest
 	Loop 70
 	{
+		GetRobloxClientPos(hwnd)
+		if (ocrFound := nm_OCRMatchNames(ocrNames, 0, 150, 310, Max(560, windowHeight-100) - 150, windowX, windowY)) {
+			Qfound := [0, ocrFound[2], ocrFound[3]]
+			if (A_Index > 1)
+				Gdip_DisposeImage(pBMLog)
+			break
+		}
+
 		Qfound:=nm_imgSearch("black_bear.png",50,"quest")
 		if (Qfound[1]=0) {
 			if (A_Index > 1)
@@ -21254,17 +21307,24 @@ nm_BlackQuestProg(){
 			MsgBox "Folder location cannot be found:`n" A_WorkingDir "\nm_image_assets\"
 		}
 		BlackStart:=(result = 1) ? [0, FoundX-windowX, FoundY-windowY] : [1, 0, 0]
-		;determine Quest name
+		;determine Quest name (OCR first, quest name images as a fallback)
+		ocrName := nm_OCRMatchNames(ocrNames, 0, BlackStart[3]-30, 306, 30, windowX, windowY)
+		ocrKey := (ocrName && ocrName[1] > 1) ? ocrNames[ocrName[1]] : ""
 		xi := windowX
 		yi := windowY+BlackStart[3]-30
 		ww := windowX+306
 		wh := windowY+BlackStart[3]
 		for key, value in BlackBear {
 			filename:=(key . ".png")
-			try
-				result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
-			catch
-				result := 0
+			if (ocrKey != "")
+				result := (key = ocrKey)
+			else
+			{
+				try
+					result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*100 nm_image_assets\" fileName)
+				catch
+					result := 0
+			}
 			if(result = 1) {
 				BlackQuest:=key
 				questSteps:=BlackBear[key].Length
@@ -21420,7 +21480,15 @@ nm_BrownQuestProg(){
 			i := A_Index
 			Loop 70
 			{
-				n := A_Index				
+				n := A_Index
+				; OCR first ("Brown Bear"); the title images are text from the old Roblox font
+				GetRobloxClientPos(hwnd)
+				if (ocrFound := nm_OCRMatchNames(["Brown Bear"], 0, (aim[i] = "quest") ? 150 : 0, 310, (aim[i] = "quest") ? Max(560, windowHeight-100) - 150 : windowHeight//2, windowX, windowY)) {
+					Qfound := [0, ocrFound[2], ocrFound[3]]
+					if (n > 1)
+						Gdip_DisposeImage(pBMLog)
+					break 2
+				}
 				loop 5 
 				{
 					Qfound:=nm_imgSearch("brown_bear" A_Index ".png",50,aim[i])
@@ -21502,6 +21570,13 @@ nm_BrownQuestProg(){
 				pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+BrownStart[3]+QuestBarGapSize+objectivePos "|304|" QuestBarSize-QuestBarGapSize)
 
 				if (Gdip_ImageSearch(pBMScreen, bitmaps["questbarinset"], , , , 6, , 5) = 1) {
+					; objective read with OCR (the objective images are text from the old Roblox font); the images
+					; below are only used if OCR reads nothing at all
+					if ((ocrObj := nm_OCRQuestObjective(pBMScreen, objectiveList, objectives)) != "") {
+						objectives.Push(ocrObj)
+						Gdip_DisposeImage(pBMScreen)
+						continue
+					}
 					for size in [16,15,14,18,17] { ; in approximate order of probability
 						if (Gdip_ImageSearch(pBMScreen, bitmaps["s" size "collect"], , 6, , , , 30) = 1) {
 							objectiveSize := size
