@@ -693,3 +693,40 @@ nm_OCR_BuffDigit(pBM, x1, y1, x2, y2) {
 			return d
 	return ""
 }
+
+; Reads one quest objective bar (pBM) with OCR and returns which of the keys (e.g. "pinetree", "redpollen")
+; it names, "unknown" if text was read but no key fits, or "" if OCR read nothing (then images are tried).
+; Keys already in exclude are skipped (an objective can't appear twice). Pollen colours win over fields, so
+; "Collect 1,000,000 Blue Pollen" is bluepollen, while "...Pollen from the Blue Flower Field" is blueflower.
+nm_OCRQuestObjective(pBM, keys, exclude := "") {
+	text := ""
+	for invert in [0, 1]
+	{
+		if !(result := nm_OCR_FromBitmap(pBM, 3, invert))
+			return ""
+		for line in result.Lines
+			for word in line.Words
+				text .= word.Text
+		text := nm_OCR_Norm(text)
+		if (StrLen(text) >= 4)
+			break
+	}
+	if (StrLen(text) < 4)
+		return ""
+	if (nm_OCR_PhraseDistance("collect", text) > 1) ; only "Collect ..." objectives are handled (like the original images)
+		return "unknown"
+	best := "", bestD := 99
+	for key in keys
+	{
+		if IsObject(exclude)
+			for v in exclude
+				if (v = key)
+					continue 2
+		allowed := (StrLen(key) >= 8) ? 1 : 0
+		d := nm_OCR_PhraseDistance(key, text)
+		; colour pollen beats a field; otherwise the closest (then longest) name wins
+		if (d <= allowed) && ((d < bestD) || (d = bestD && (InStr(key, "pollen") || StrLen(key) > StrLen(best))))
+			best := key, bestD := d
+	}
+	return (best != "") ? best : "unknown"
+}
