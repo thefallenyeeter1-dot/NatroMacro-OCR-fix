@@ -540,6 +540,8 @@ status_changes[A_Min*60+A_Sec] := 0
 
 ; set emergency switches in case of time error
 last_honey := last_report := time := 0
+; hour of the last scheduled report (YYYYMMDDHH); a report is due whenever the clock moves into a new hour
+last_hour := SubStr(A_Now, 1, 10)
 
 ; indefinite loop of detection and reporting
 Loop
@@ -560,10 +562,14 @@ Loop
 		last_honey := time
 	}
 
-	; send report every hour, or on request (?hr)
-	if (force_report || (time_value = 0) || (last_report && time > last_report + 35980000000))
+	; send report every hour, or on request (?hr). "Every hour" means: the clock is in a new hour since the last
+	; scheduled report. The old check needed the 6-second tick at exactly hh:00:00-05, which was skipped whenever
+	; the previous check (buffs + honey reading) took longer than 6 seconds, and then that hour had no report
+	if (force_report || (SubStr(A_Now, 1, 10) != last_hour))
 	{
 		report_forced := force_report, force_report := 0
+		if !report_forced
+			last_hour := SubStr(A_Now, 1, 10)
 		SendHourlyReport()
 		DllCall("GetSystemTimeAsFileTime", "int64p", &time)
 		last_report := time
@@ -2332,6 +2338,24 @@ else
 
 	try
 	{
+		; encode the report so it fits Discord's upload limit (10 MB). The full-size report is sent as a PNG
+		; whenever that fits; with some photo backgrounds the PNG is larger, and Discord rejects it (a report
+		; that "sometimes" didn't arrive, depending on the background). Then it's sent at the same full size
+		; as a high-quality JPEG instead, which is a fraction of the size
+		fileExt := "png", fileMime := "image/png"
+		pFileStream := Gdip_SaveBitmapToStream(pBMReport, "PNG")
+		DllCall("shlwapi\IStream_Size", "Ptr", pFileStream, "UInt64P", &size:=0, "UInt")
+		for quality in [95, 90, 85, 75]
+		{
+			if (size <= 9500000)
+				break
+			ObjRelease(pFileStream)
+			fileExt := "jpg", fileMime := "image/jpeg"
+			pFileStream := Gdip_SaveBitmapToStream(pBMReport, "JPG", quality)
+			DllCall("shlwapi\IStream_Size", "Ptr", pFileStream, "UInt64P", &size:=0, "UInt")
+		}
+		reportSize := size
+
 		chars := "0|1|2|3|4|5|6|7|8|9|a|b|c|d|e|f|g|h|i|j|k|l|m|n|o|p|q|r|s|t|u|v|w|x|y|z"
 		chars := Sort(chars, "D| Random")
 		boundary := SubStr(StrReplace(chars, "|"), 1, 12)
@@ -2349,12 +2373,12 @@ else
 			"embeds": [{
 				"title": "**[' A_Hour ':' A_Min ':00] Hourly Report**",
 				"color": "14052794",
-				"image": {"url": "attachment://file.png"}
+				"image": {"url": "attachment://file.' fileExt '"}
 			}]
 		}
 		------------------------------' boundary '
-		Content-Disposition: form-data; name="files[0]"; filename="file.png"
-		Content-Type: image/png
+		Content-Disposition: form-data; name="files[0]"; filename="file.' fileExt '"
+		Content-Type: ' fileMime '
 
 		'
 		)
@@ -2362,8 +2386,7 @@ else
 		utf8 := Buffer(length := StrPut(str, "UTF-8") - 1), StrPut(str, utf8, length, "UTF-8")
 		DllCall("shlwapi\IStream_Write", "Ptr", pStream, "Ptr", utf8.Ptr, "UInt", length, "UInt")
 
-		pFileStream := Gdip_SaveBitmapToStream(pBMReport)
-		DllCall("shlwapi\IStream_Size", "Ptr", pFileStream, "UInt64P", &size:=0, "UInt")
+		size := reportSize
 		DllCall("shlwapi\IStream_Reset", "Ptr", pFileStream, "UInt")
 		DllCall("shlwapi\IStream_Copy", "Ptr", pFileStream, "Ptr", pStream, "UInt", size, "UInt")
 		ObjRelease(pFileStream)
@@ -2391,17 +2414,43 @@ else
 		DllCall("GlobalFree", "Ptr", hData, "Ptr")
 		contentType := "multipart/form-data; boundary=----------------------------" boundary
 
-		wr := ComObject("WinHttp.WinHttpRequest.5.1")
-		wr.Option[9] := 2720
-		wr.Open("POST", (discordMode = 0) ? webhook : ("https://discord.com/api/v10/channels/" ReportChannelID "/messages"), 0)
-		if (discordMode = 1)
+		; upload, retrying up to 3 times: Discord answers 429 when busy (often with bot commands / TadSync
+		; polling), and a network hiccup shouldn't cost the whole hour's report
+		status := 0, statusText := ""
+		Loop 3
 		{
-			wr.SetRequestHeader("User-Agent", "DiscordBot (AHK, " A_AhkVersion ")")
-			wr.SetRequestHeader("Authorization", "Bot " bottoken)
+			attempts := A_Index
+			try {
+				wr := ComObject("WinHttp.WinHttpRequest.5.1")
+				wr.Option[9] := 2720
+				wr.Open("POST", (discordMode = 0) ? webhook : ("https://discord.com/api/v10/channels/" ReportChannelID "/messages"), 0)
+				if (discordMode = 1)
+				{
+					wr.SetRequestHeader("User-Agent", "DiscordBot (AHK, " A_AhkVersion ")")
+					wr.SetRequestHeader("Authorization", "Bot " bottoken)
+				}
+				wr.SetRequestHeader("Content-Type", contentType)
+				wr.SetTimeouts(0, 60000, 120000, 30000)
+				wr.Send(retData)
+				status := wr.Status, statusText := wr.StatusText
+			} catch as err {
+				status := 0, statusText := err.Message
+			}
+			if (status >= 200 && status < 300)
+				break
+			retryMs := 5000
+			if (status = 429) ; rate limited: wait as long as Discord asks
+				try retryMs := Max(1000, Round(1000 * (wr.GetResponseHeader("Retry-After") + 0)) + 250)
+			if (status = 413) ; still too big for this server: no point retrying the same file
+				break
+			Sleep retryMs
 		}
-		wr.SetRequestHeader("Content-Type", contentType)
-		wr.SetTimeouts(0, 60000, 120000, 30000)
-		wr.Send(retData)
+		try {
+			logPath := A_WorkingDir "\settings\statmonitor_send.log"
+			FileAppend FormatTime(, "yyyy-MM-dd HH:mm:ss") "  Hourly Report upload  ->  " status " " statusText " (" Round(reportSize/1048576, 1) " MB " fileExt ", attempt " attempts ")`n", logPath
+		}
+		if !(status >= 200 && status < 300)
+			throw Error("Discord upload failed: " status " " statusText)
 	}
 	catch as e
 	{
