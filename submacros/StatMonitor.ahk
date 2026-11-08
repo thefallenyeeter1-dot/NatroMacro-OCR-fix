@@ -1220,12 +1220,19 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 ; finds the "Honey" label in the honey read area with OCR; returns its word box or 0
 HoneyLabel(pBM)
 {
-	if !(result := nm_OCR_FromBitmap(pBM, 3, 0))
-		return 0
-	for word in result.Words
-		if (nm_OCR_MatchDistance("honey", nm_OCR_Norm(word.Text)) <= 1)
-			return word
-	return 0
+	; the label's position is remembered: OCR sometimes misses the word even though nothing has moved, and
+	; without the label the digit pictures can't be used at all. The remembered position is only reused for
+	; a read area of the same size (same window size)
+	static last := 0, lastSize := ""
+	size := Gdip_GetImageWidth(pBM) "x" Gdip_GetImageHeight(pBM)
+	if (result := nm_OCR_FromBitmap(pBM, 3, 0))
+		for word in result.Words
+			if (nm_OCR_MatchDistance("honey", nm_OCR_Norm(word.Text)) <= 1)
+			{
+				last := {x: word.x, y: word.y, w: word.w, h: word.h}, lastSize := size
+				return last
+			}
+	return (last && size = lastSize) ? last : 0
 }
 
 ; Reads the honey counter right of the "Honey" label without OCR: the counter's yellow digit pixels are split
