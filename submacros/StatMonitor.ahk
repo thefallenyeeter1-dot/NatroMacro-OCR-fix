@@ -1030,7 +1030,7 @@ DetectHoney()
 	; accepted once the next minute's reading agrees with it (same digit count, same ballpark). Normal growth,
 	; even fast growth on a small account, keeps the digit count and passes straight away. Until two readings
 	; agree, the session start honey is provisional and is corrected along with them.
-	static lastGood := 0, lastLen := 0, pending := 0, pendingLen := 0, startConfirmed := 0
+	static lastGood := 0, lastLen := 0, pending := 0, pendingLen := 0, startConfirmed := 0, firstReads := []
 	if current_honey
 	{
 		len := StrLen(Format("{:.0f}", current_honey))
@@ -1040,7 +1040,7 @@ DetectHoney()
 			{
 				lastGood := current_honey, lastLen := len, pending := 0 ; two readings agree: the earlier value was the misread
 				if !startConfirmed
-					start_honey := current_honey, startConfirmed := 1
+					start_honey := current_honey, startConfirmed := 1, firstReads := [] ; the earlier readings were the misreads
 			}
 			else
 				pending := current_honey, pendingLen := len, current_honey := 0 ; skip this minute
@@ -1048,7 +1048,12 @@ DetectHoney()
 		else
 		{
 			if lastGood
+			{
 				startConfirmed := 1
+				global honey_read_source, honey_read_digits
+				if (honey_read_source = "ocr") ; OCR agreed on it and it fits the previous reading: learn its digits
+					HoneyLearn(honey_read_digits)
+			}
 			lastGood := current_honey, lastLen := len, pending := 0
 		}
 	}
@@ -1062,6 +1067,22 @@ DetectHoney()
 		; (IsSet: during the startup read itself start_honey doesn't exist yet, and reading it would throw)
 		if (!IsSet(start_honey) || !start_honey)
 			start_honey := current_honey
+		; the session's starting honey is the median of the first 5 accepted readings, not just the first one:
+		; a single misread at the start (same number of digits, so it passes the checks) would otherwise skew
+		; Session Honey and the Hourly Average for the whole session
+		if (firstReads.Length < 5)
+		{
+			firstReads.Push(current_honey)
+			sorted := []
+			for v in firstReads
+			{
+				i := sorted.Length + 1
+				while (i > 1 && sorted[i-1] > v)
+					i--
+				sorted.InsertAt(i, v)
+			}
+			start_honey := sorted[(sorted.Length + 1) // 2]
+		}
 		if (FileExist("settings\nm_config.ini") && IsSet(start_time))
 		{
 			session_time := DateDiff(A_Now, start_time, "S")
@@ -1100,8 +1121,10 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	pBM := Gdip_BitmapFromScreen(winX + x0 "|" winY + y0 "|" w "|" h)
 
 	; first choice: the counter's digits recognised from pictures of BSS's honey font (exact, no OCR guessing)
+	global honey_read_source := "", honey_read_digits := ""
 	if ((digits := HoneyReadDigits(pBM, w, h)) != "")
 	{
+		honey_read_source := "pictures", honey_read_digits := digits
 		Gdip_DisposeImage(pBM)
 		try {
 			logPath := nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
@@ -1187,6 +1210,8 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 		FileAppend FormatTime(, "HH:mm:ss") "  " ((best != "") ? best : "no reading") "  (" reads.Length " readings)`n", logPath
 	}
 	; integers top out at 9,223,372,036,854,775,807 (~9.2 Qa); only larger values are kept as a float
+	if (best != "")
+		honey_read_source := "ocr", honey_read_digits := best
 	best := (best = "") ? 0 : ((StrLen(best) > 19) || (StrLen(best) = 19 && StrCompare(best, "9223372036854775807") > 0)) ? Float(best) : Integer(best)
 	Gdip_DisposeImage(pBM), Gdip_DisposeImage(pBMc)
 	return best
@@ -1273,6 +1298,7 @@ HoneyReadDigits(pBM, w, h)
 		["5", "09999949444499000099444044449400009900009944449449994049999774449400097442000490004944477799720499999049999999400009940000999994000004990000499000049999999400499400"],
 		["2", "49994044449000009400009400049000494004940049944499999979972444740004700047027722772079744999990499400999994000004400000499000044000049400049400049400099999999999999"],
 		["0", "04994049449499009994004990000994004999009949449404994027972774779404972027720279404977477279720049400049994099404999940499940004994000499940499994049904999400049400"]], grids := [[6, 9], [5, 8], [7, 10]], parsed := 0
+	global honey_templates, honey_glyph_feats
 	if !parsed
 	{
 		parsed := []
@@ -1283,7 +1309,19 @@ HoneyReadDigits(pBM, w, h)
 				vals.Push(A_LoopField / 9)
 			parsed.Push([tpl[1], vals])
 		}
+		; digits learned on this PC (see HoneyLearn), so screens that draw the counter differently get better
+		try Loop Read A_WorkingDir "\settings\honey_digits_learned.txt"
+		{
+			if !RegExMatch(A_LoopReadLine, "^(\d)\|(\d{164})$", &m)
+				continue
+			vals := []
+			Loop Parse m[2]
+				vals.Push(A_LoopField / 9)
+			parsed.Push([m[1], vals])
+		}
+		honey_templates := parsed
 	}
+	honey_glyph_feats := []
 	if !(label := HoneyLabel(pBM))
 		return ""
 	rx1 := Min(w - 1, Round(label.x + label.w) + 2), rx2 := w
@@ -1338,7 +1376,7 @@ HoneyReadDigits(pBM, w, h)
 	}
 	if (top = 9999)
 		return ""
-	gh := bot - top + 1, out := ""
+	gh := bot - top + 1, out := "", failed := 0
 	for run in span
 	{
 		if (run[4] - run[3] + 1 < H * 0.75) ; short character: a comma
@@ -1371,6 +1409,7 @@ HoneyReadDigits(pBM, w, h)
 				}
 			}
 		}
+		honey_glyph_feats.Push(feat) ; kept so a confirmed reading can teach these digits (HoneyLearn)
 		best := "", bestS := 99
 		for tpl in parsed
 		{
@@ -1385,11 +1424,51 @@ HoneyReadDigits(pBM, w, h)
 			if (sc < bestS)
 				bestS := sc, best := tpl[1]
 		}
-		if (bestS > 1.0) ; nothing like any known digit
-			return ""
+		if (bestS > 1.0) ; nothing like any known digit: keep going so all digits' shapes are collected
+			failed := 1
 		out .= best
 	}
+	if failed
+		return ""
 	return RegExMatch(out, "^\d{1,3}(,\d{3})+$") ? StrReplace(out, ",") : ""
+}
+
+; Teaches the honey digit reader the digits of a confirmed reading (one OCR agreed on and that fits the
+; previous readings) using the shapes HoneyReadDigits collected on this screen. Saved in
+; settings\honey_digits_learned.txt, so a PC whose counter looks different reads it from pictures over time.
+HoneyLearn(digits)
+{
+	global honey_templates, honey_glyph_feats
+	if !IsSet(honey_glyph_feats) || !IsSet(honey_templates) || (honey_glyph_feats.Length != StrLen(digits))
+		return
+	path := A_WorkingDir "\settings\honey_digits_learned.txt"
+	count := 0
+	try Loop Read path
+		count++
+	if (count >= 300)
+		return
+	for i, feat in honey_glyph_feats
+	{
+		ch := SubStr(digits, i, 1), best := 99
+		for tpl in honey_templates ; skip shapes already known well
+			if (tpl[1] = ch)
+			{
+				sc := 0
+				Loop feat.Length
+					sc += Abs(feat[A_Index] - tpl[2][A_Index])
+				best := Min(best, sc / feat.Length * 3)
+			}
+		if (best < 0.25)
+			continue
+		str := "", vals := []
+		for v in feat
+			q := Round(v * 9), str .= q, vals.Push(q / 9)
+		try {
+			DirCreate A_WorkingDir "\settings"
+			FileAppend ch "|" str "`n", path
+			honey_templates.Push([ch, vals])
+		}
+	}
 }
 
 ; Crops pBM (the honey read area) down to just the counter's digits: finds the "Honey" label with OCR, then
@@ -1517,6 +1596,10 @@ HoneyConsensus(reads)
 ; returns "" if comma groups are malformed (a sign of a misread)
 HoneyNumber(text)
 {
+	; while converting, the counter is followed by the rate "(+13,721/sec)". OCR often loses the bracket and
+	; glues the rate onto the number, adding digits. Everything from a bracket, plus sign or "/sec" on is cut
+	if RegExMatch(text, "[(+\[{]|[/i]\s*sec", &cut)
+		text := SubStr(text, 1, cut.Pos - 1)
 	t := StrReplace(StrReplace(StrReplace(text, "O", "0"), "S", "5"), "B", "8")
 	t := RegExReplace(t, "[Il|]", "1")
 	t := RegExReplace(Trim(t), "(?<=\d)\s*[,.\s]\s*(?=\d)", ",") ; any separator between digits counts as a comma
@@ -1595,6 +1678,21 @@ SendHourlyReport()
 
 		Loop Parse str, A_Space
 			honey_values.Delete(Integer(A_LoopField))
+
+		; remove one-minute spikes: a reading well above or below BOTH neighbouring readings is a misread
+		; (a real change, like converting or spending, stays at the new level and isn't affected)
+		keys := [], bad := []
+		for k in honey_values
+			keys.Push(k)
+		Loop Max(0, keys.Length - 2)
+		{
+			a := honey_values[keys[A_Index]], b := honey_values[keys[A_Index+1]], c := honey_values[keys[A_Index+2]]
+			lo := Min(a, c), hi := Max(a, c), tol := Max(1000, hi * 0.02)
+			if (b > hi + tol) || (b < lo - tol)
+				bad.Push(keys[A_Index+1])
+		}
+		for k in bad
+			honey_values.Delete(k)
 
 		min_value := minX(honey_values), max_value := Max(maxX(honey_values), min_value+1000), range_value := max_value - min_value
 	}
