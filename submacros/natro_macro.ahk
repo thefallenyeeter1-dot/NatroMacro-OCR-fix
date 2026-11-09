@@ -14492,22 +14492,32 @@ nm_Reset(checkAll := 1, wait:=2000, convert := 1, force := 0)
 			nm_setStatus("Warning", "Hive prompt not found after reset " A_Index " (see tools\OCR_debug\hive_fail.png)")
 
 		; Dully's Hivecheck for if we spawn at baseplate
-
-		if nm_DetectSpawn() 
+		; Resets can drop the character on the baseplate in front of the hives instead of on its hive pad.
+		; The baseplate colour check (nm_DetectSpawn) often misses it (lighting, graphics, time of day), and then
+		; the macro just reset again forever. So walk to the Hive Slot even when the check misses, then look for
+		; the hive prompt again; only reset again if the prompt still isn't there after the walk.
+		spawnSeen := nm_DetectSpawn()
+		if !spawnSeen
+			nm_setStatus("Warning", "Spawn not recognised, walking to hive slot " HiveSlot " anyway")
+		Sleep 500
+		GetRobloxClientPos(hwnd)
+		MouseMove windowX+350, windowY+offsetY+100
+		send "{" ZoomOut " 8}"
+		movement := nm_spawnMoveTo(slotMove[HiveSlot])
+		nm_createWalk(movement)
+		KeyWait "F14", "D T5 L"
+		KeyWait "F14", "T20 L"
+		nm_endWalk()
+		sleep 500
+		if nm_ConfirmAtHive("hive_fail_walk") ; separate dump: shows where the walk to the hive slot ended up
 		{
-			Sleep 500
-			GetRobloxClientPos(hwnd)
-			MouseMove windowX+350, windowY+offsetY+100
-			send "{" ZoomOut " 8}"
-			movement := nm_spawnMoveTo(slotMove[HiveSlot])
-			nm_createWalk(movement)
-			KeyWait "F14", "D T5 L"
-			KeyWait "F14", "T20 L"
-			nm_endWalk()
-
-			sleep 500
+			if (nm_SetHiveCameraDirection() > 0)
+				HiveConfirmed := 1
 			break
-		} 
+		}
+		nm_setStatus("Warning", "Hive prompt not found at hive slot " HiveSlot " - check Hive Slot matches your claimed hive (see tools\OCR_debug\hive_fail_walk_full.png)")
+		if spawnSeen ; old behaviour: baseplate was recognised, so carry on as before
+			break
 	}
 
 	if convert = 1 
@@ -14571,7 +14581,7 @@ nm_HealthBar()
 
     return grey > 20
 }
-nm_ConfirmAtHive(){
+nm_ConfirmAtHive(tag := "hive_fail"){
 	; offsetY was never set in this function (an unset variable, silenced by #Warn VarUnset Off and the
 	; error handler), so the check area ignored the GUI offset and the window's position: it only lined up
 	; for fullscreen Roblox with offset 0, and missed the prompt for everyone else -> endless resets
@@ -14592,15 +14602,15 @@ nm_ConfirmAtHive(){
 	}
 	; keep a snapshot of what was checked (at most once a minute) for diagnosing reset loops,
 	; with the words OCR actually read (this used to pass 0, so the log always said "OCR did not run")
-	static lastDump := 0
-	if (A_TickCount - lastDump > 60000) {
-		lastDump := A_TickCount, result := 0
+	static lastDump := Map()
+	if (A_TickCount - (lastDump.Has(tag) ? lastDump[tag] : -60001) > 60000) {
+		lastDump[tag] := A_TickCount, result := 0
 		try result := nm_OCR_FromBitmap(pBMScreen, 2, 0)
-		nm_OCR_SaveDebug(pBMScreen, result, "hive_fail")
+		nm_OCR_SaveDebug(pBMScreen, result, tag)
 		; whole Roblox window too, to see where the character actually is when the prompt is missing
 		try {
 			pBMFull := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|" windowHeight)
-			Gdip_SaveBitmapToFile(pBMFull, nm_OCR_RootDir() "\tools\OCR_debug\hive_fail_full.png")
+			Gdip_SaveBitmapToFile(pBMFull, nm_OCR_RootDir() "\tools\OCR_debug\" tag "_full.png")
 			Gdip_DisposeImage(pBMFull)
 		}
 	}
@@ -14979,6 +14989,9 @@ nm_gotoRamp(){
 	KeyWait "F14", "T60 L"
 	nm_endWalk()
 }
+; Red cannon prompt: its picture is text from the old Roblox font, so read the prompt with OCR too
+nm_CannonPromptSeen(pBM) => (Gdip_ImageSearch(pBM, bitmaps["redcannon"], , , , , , 2, , 2) = 1) || nm_OCRFindPhrase(pBM, ["cannon"], 1)
+
 nm_gotoCannon(){
 	global LeftKey, RightKey, FwdKey, BackKey, currentWalk, objective, SC_Space, bitmaps
 
@@ -15009,7 +15022,7 @@ nm_gotoCannon(){
 		while (n < f)
 		{
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["redcannon"], , , , , , 2, , 2) = 1)
+			if (nm_CannonPromptSeen(pBMScreen))
 			{
 				success := 1, Gdip_DisposeImage(pBMScreen)
 				break
@@ -15030,7 +15043,7 @@ nm_gotoCannon(){
 				}
 				Sleep 500
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["redcannon"], , , , , , 2, , 2) = 1)
+				if (nm_CannonPromptSeen(pBMScreen))
 				{
 					Gdip_DisposeImage(pBMScreen)
 					break 2
@@ -21004,6 +21017,7 @@ nm_createWalk(movement, name:="", vars:="") ; this function generates the 'walk'
 	) :
 	(
 	'
+	#Include "nm_OCR.ahk" ; OCR for prompts in paths (Walk.ahk includes it for NewWalk)
 	(bitmaps := Map()).CaseSense := 0
 	pToken := Gdip_Startup()
 	Walk(param, *) => HyperSleep(4000/' MoveSpeedNum '*param)
@@ -24632,6 +24646,10 @@ nm_PathVars(){
 		nm_Walk(9.2*HiveSlot-4, RightKey)
 	}
 
+	CannonPromptSeen(pBM, pBMCannon) { ; old-font picture first, then OCR (Roblox font update)
+		return (Gdip_ImageSearch(pBM, pBMCannon, , , , , , 2, , 2) = 1) || nm_OCRFindPhrase(pBM, ["cannon"], 1)
+	}
+
 	nm_gotoCannon() {
 		static pBMCannon := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAABsAAAAMAQMAAACpyVQ1AAAABlBMVEUAAAD3//lCqWtQAAAAAXRSTlMAQObYZgAAAEdJREFUeAEBPADD/wDAAGBgAMAAYGAA/gBgYAD+AGBgAMAAYGAAwABgYADAAGBgAMAAYGAAwABgYADAAGBgAMAAYGAAwABgYDdgEn1l8cC/AAAAAElFTkSuQmCC")
 
@@ -24654,7 +24672,7 @@ nm_PathVars(){
 			while (n < f)
 			{
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-				if (Gdip_ImageSearch(pBMScreen, pBMCannon, , , , , , 2, , 2) = 1)
+				if (CannonPromptSeen(pBMScreen, pBMCannon))
 				{
 					success := 1, Gdip_DisposeImage(pBMScreen)
 					break
@@ -24675,7 +24693,7 @@ nm_PathVars(){
 					}
 					Sleep 500
 					pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-					if (Gdip_ImageSearch(pBMScreen, pBMCannon, , , , , , 2, , 2) = 1)
+					if (CannonPromptSeen(pBMScreen, pBMCannon))
 					{
 						Gdip_DisposeImage(pBMScreen)
 						break 2
