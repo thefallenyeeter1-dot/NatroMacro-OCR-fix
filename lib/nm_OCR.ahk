@@ -74,6 +74,7 @@ nm_OCR_FromBitmap(pBitmap, scale := 1, invert := 0) {
 	try
 		return nm_OCRLib.FromBitmap(pBitmap, {lang: lang, scale: scale, invertcolors: invert})
 	catch as e {
+		nm_OCR_LastError(e.Message " (line " e.Line ")")
 		nm_OCR_Log("OCR failed: " e.Message)
 		return 0
 	}
@@ -322,6 +323,14 @@ nm_OCR_SavedOffset(w, h) {
 	return (parts.Length = 3 && parts[2] = w && parts[3] = h && IsInteger(parts[1])) ? Integer(parts[1]) : ""
 }
 
+; Last OCR error message (set when Windows OCR throws), so debug dumps can say why OCR returned nothing
+nm_OCR_LastError(msg?) {
+	static last := ""
+	if IsSet(msg)
+		last := FormatTime(, "HH:mm:ss") " " msg
+	return last
+}
+
 ; Saves a screenshot and the words OCR read to tools\OCR_debug, so a failed detection can be diagnosed
 nm_OCR_SaveDebug(pBM, result, name) {
 	try {
@@ -332,7 +341,9 @@ nm_OCR_SaveDebug(pBM, result, name) {
 		if result {
 			for word in result.Words
 				txt .= word.Text "  (x" Round(word.x) " y" Round(word.y) ")`n"
-		} else
+		} else if (err := nm_OCR_LastError())
+			txt .= "(OCR error: " err ")`n"
+		else
 			txt .= "(OCR did not run)`n"
 		f := FileOpen(dir "\" name ".txt", "w"), f.Write(txt), f.Close()
 	}

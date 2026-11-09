@@ -617,7 +617,7 @@ DetectBuffs()
 	BuffStackWords(0, 1) ; new screenshot, so forget the previous OCR read of the stack numbers
 
 	buff_colors := Map()
-	buff_colors["pinetree"]   := 0x206F2C						
+	buff_colors["pinetree"]   := 0x257039 ; measured from a real Pine Tree boost icon (was 0x206F2C, which missed it)						
 	buff_colors["blueflower"] := 0x1558DF   
 	buff_colors["bamboo"]      := 0x51C362
 	buff_colors["snowflake"]   := 0xC7DCE1
@@ -629,30 +629,14 @@ DetectBuffs()
 	secondary_colors["snowflake"]   := 0x36424F
 
 	for v in ["snowflake","babylove","guiding","pinetree","blueflower","bamboo"] {
-	    if (v="snowflake") {
-	        ; Snowflake specific logic with 5 and 10 tolerance
-	        if PixelSearch(&pxX, &pxY, 0, 77, 900, 125, buff_colors[v], 5) {
-	            if PixelSearch(&sx, &sy, pxX-30, pxY-30, pxX+30, pxY+30, secondary_colors[v], 7) {
-	                buff_values[v][i] := 1
-	            } else {
-	                buff_values[v][i] := 0
-	            }
-	        } else {
-	            buff_values[v][i] := 0
-	        }
-
-	    } else if (v="pinetree" || v="blueflower" || v="bamboo") {
-	        ; Standard field logic with 15 and 40 tolerance
-	        if PixelSearch(&pxX, &pxY, 0, 77, 900, 125, buff_colors[v], 8) {
-	            if PixelSearch(&sx, &sy, pxX-30, pxY-30, pxX+30, pxY+30, secondary_colors[v], 10) {
-	                buff_values[v][i] := 1
-	            } else {
-	                buff_values[v][i] := 0
-	            }
-	        } else {
-	            buff_values[v][i] := 0
-	        }
-
+	    if (v="snowflake" || v="pinetree" || v="blueflower" || v="bamboo") {
+	        ; field boosts and snowflake: searched in this script's own screenshot of the buff bar (follows the
+	        ; Roblox window and GUI offset, whole width) instead of fixed screen coordinates 0-900 px, and a buff
+	        ; only counts when an icon-sized patch has many pixels of its main colour plus some of its second
+	        ; colour (a few stray pixels of the same green or blue elsewhere no longer count)
+	        buff_values[v][i] := (v = "snowflake")
+	            ? FieldBuffPresent(pBMArea, buff_colors[v], secondary_colors[v], 5, 7, 30)
+	            : FieldBuffPresent(pBMArea, buff_colors[v], secondary_colors[v], 8, 10, 20)
 	    } else {
 	        ; Your existing Gdip logic for babylove and guiding
 	        buff_values[v][i] := (Gdip_ImageSearch(pBMArea, buff_bitmaps["pBM" v], , , 30, , , (InStr(v,"mark") || v="guiding") ? 20 : 0, , 7) = 1)
@@ -877,6 +861,41 @@ DetectBuffs()
 	; clean up and return
 	Gdip_DisposeImage(pBMArea)
 	return str
+}
+
+/********************************************************************************************
+* @description: is a buff icon with these colours on the buff bar? Finds every pixel of the main colour
+*   (one fast search), groups them into icon-wide columns, and accepts a column with at least minCount of
+*   them when the same patch also has a few pixels of the second colour
+********************************************************************************************/
+FieldBuffPresent(pBMArea, primary, secondary, varP, varS, minCount := 20)
+{
+	static dots := Map()
+	for c in [primary, secondary]
+		if !dots.Has(c)
+		{
+			dots[c] := Gdip_CreateBitmap(1, 1), G := Gdip_GraphicsFromImage(dots[c])
+			Gdip_GraphicsClear(G, 0xFF000000 | c), Gdip_DeleteGraphics(G)
+		}
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	if (Gdip_ImageSearch(pBMArea, dots[primary], &list, 0, 8, w, h, varP, , 1, 800) < minCount)
+		return 0
+	bins := Map()
+	Loop Parse list, "`n"
+	{
+		if (A_LoopField = "")
+			continue
+		b := Integer(StrSplit(A_LoopField, ",")[1]) // 20
+		bins[b] := (bins.Has(b) ? bins[b] : 0) + 1
+	}
+	for b, c in bins
+	{
+		if (c + (bins.Has(b+1) ? bins[b+1] : 0) < minCount) ; an icon spans about two 20 px columns
+			continue
+		if (Gdip_ImageSearch(pBMArea, dots[secondary], , Max(0, b*20 - 20), 8, Min(w, b*20 + 60), h, varS, , 1, 6) >= 4)
+			return 1
+	}
+	return 0
 }
 
 /********************************************************************************************
