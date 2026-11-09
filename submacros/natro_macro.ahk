@@ -12563,21 +12563,32 @@ nm_Reset(checkAll := 1, wait:=2000, convert := 1, force := 0)
 			nm_setStatus("Warning", "Hive prompt not found after reset " A_Index " (see tools\OCR_debug\hive_fail.png)")
 
 		; Dully's Hivecheck for if we spawn at baseplate
-
-		if nm_DetectSpawn() 
+		; Resets can drop the character on the baseplate in front of the hives instead of on its hive pad.
+		; The baseplate colour check (nm_DetectSpawn) often misses it (lighting, graphics, time of day), and then
+		; the macro just reset again forever. So walk to the Hive Slot even when the check misses, then look for
+		; the hive prompt again; only reset again if the prompt still isn't there after the walk.
+		spawnSeen := nm_DetectSpawn()
+		if !spawnSeen
+			nm_setStatus("Warning", "Spawn not recognised, walking to hive slot " HiveSlot " anyway")
+		Sleep 500
+		GetRobloxClientPos(hwnd)
+		MouseMove windowX+350, windowY+offsetY+100
+		send "{" ZoomOut " 8}"
+		movement := nm_spawnMoveTo(slotMove[HiveSlot])
+		nm_createWalk(movement)
+		KeyWait "F14", "D T5 L"
+		KeyWait "F14", "T20 L"
+		nm_endWalk()
+		sleep 500
+		if nm_ConfirmAtHive()
 		{
-			Sleep 500
-			GetRobloxClientPos(hwnd)
-			MouseMove windowX+350, windowY+offsetY+100
-			send "{" ZoomOut " 8}"
-			movement := nm_spawnMoveTo(slotMove[HiveSlot])
-			nm_createWalk(movement)
-			KeyWait "F14", "D T5 L"
-			KeyWait "F14", "T20 L"
-			nm_endWalk()
-			sleep 500
+			if (nm_SetHiveCameraDirection() > 0)
+				HiveConfirmed := 1
 			break
-		} 
+		}
+		nm_setStatus("Warning", "Hive prompt not found at hive slot " HiveSlot " - check Hive Slot matches your claimed hive")
+		if spawnSeen ; old behaviour: baseplate was recognised, so carry on as before
+			break
 	}
 
 	if convert = 1 
