@@ -13060,6 +13060,9 @@ nm_gotoRamp(){
 	KeyWait "F14", "T60 L"
 	nm_endWalk()
 }
+; Red cannon prompt: its picture is text from the old Roblox font, so read the prompt with OCR too
+nm_CannonPromptSeen(pBM) => (Gdip_ImageSearch(pBM, bitmaps["redcannon"], , , , , , 2, , 2) = 1) || nm_OCRFindPhrase(pBM, ["cannon"], 1)
+
 nm_gotoCannon(){
 	global LeftKey, RightKey, FwdKey, BackKey, currentWalk, objective, SC_Space, bitmaps
 
@@ -13090,7 +13093,7 @@ nm_gotoCannon(){
 		while (n < f)
 		{
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["redcannon"], , , , , , 2, , 2) = 1)
+			if (nm_CannonPromptSeen(pBMScreen))
 			{
 				success := 1, Gdip_DisposeImage(pBMScreen)
 				break
@@ -13111,7 +13114,7 @@ nm_gotoCannon(){
 				}
 				Sleep 500
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["redcannon"], , , , , , 2, , 2) = 1)
+				if (nm_CannonPromptSeen(pBMScreen))
 				{
 					Gdip_DisposeImage(pBMScreen)
 					break 2
@@ -18509,6 +18512,7 @@ nm_createWalk(movement, name:="", vars:="") ; this function generates the 'walk'
 	) :
 	(
 	'
+	#Include "nm_OCR.ahk" ; OCR for prompts in paths (Walk.ahk includes it for NewWalk)
 	(bitmaps := Map()).CaseSense := 0
 	pToken := Gdip_Startup()
 	Walk(param, *) => HyperSleep(4000/' MoveSpeedNum '*param)
@@ -21974,6 +21978,10 @@ nm_PathVars(){
 		nm_Walk(9.2*HiveSlot-4, RightKey)
 	}
 
+	CannonPromptSeen(pBM, pBMCannon) { ; old-font picture first, then OCR (Roblox font update)
+		return (Gdip_ImageSearch(pBM, pBMCannon, , , , , , 2, , 2) = 1) || nm_OCRFindPhrase(pBM, ["cannon"], 1)
+	}
+
 	nm_gotoCannon() {
 		static pBMCannon := Gdip_BitmapFromBase64("iVBORw0KGgoAAAANSUhEUgAAABsAAAAMAQMAAACpyVQ1AAAABlBMVEUAAAD3//lCqWtQAAAAAXRSTlMAQObYZgAAAEdJREFUeAEBPADD/wDAAGBgAMAAYGAA/gBgYAD+AGBgAMAAYGAAwABgYADAAGBgAMAAYGAAwABgYADAAGBgAMAAYGAAwABgYDdgEn1l8cC/AAAAAElFTkSuQmCC")
 
@@ -21996,7 +22004,7 @@ nm_PathVars(){
 			while (n < f)
 			{
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-				if (Gdip_ImageSearch(pBMScreen, pBMCannon, , , , , , 2, , 2) = 1)
+				if (CannonPromptSeen(pBMScreen, pBMCannon))
 				{
 					success := 1, Gdip_DisposeImage(pBMScreen)
 					break
@@ -22017,7 +22025,7 @@ nm_PathVars(){
 					}
 					Sleep 500
 					pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-					if (Gdip_ImageSearch(pBMScreen, pBMCannon, , , , , , 2, , 2) = 1)
+					if (CannonPromptSeen(pBMScreen, pBMCannon))
 					{
 						Gdip_DisposeImage(pBMScreen)
 						break 2
