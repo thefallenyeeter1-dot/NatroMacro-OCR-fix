@@ -14576,17 +14576,34 @@ nm_ConfirmAtHive(){
 	; error handler), so the check area ignored the GUI offset and the window's position: it only lined up
 	; for fullscreen Roblox with offset 0, and missed the prompt for everyone else -> endless resets
 	GetRobloxClientPos(), offsetY := GetYOffset()
-	pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
-	; the prompt bitmaps are text from the old Roblox font, so OCR the prompt too ("Make Honey", "Collect Honey"...)
-	if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["colhey"], , , , , , 2, , 2) = 1)
-		|| nm_OCRFindPhrase(pBMScreen, ["makehoney", "collecthoney", "makinghoney", "collectpollen"], 2)){
-		Gdip_DisposeImage(pBMScreen)
-		return 1
+	; the reset only sleeps 3.5 s before this check (the old health-bar respawn wait is commented out), and the
+	; respawn plus the prompt appearing can take longer than that on slower PCs/servers, so the prompt often
+	; wasn't up yet -> keep looking for about 8 s. Returns as soon as it's found, so no delay when it's quick
+	Loop 25 {
+		pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY "|400|125")
+		; the prompt bitmaps are text from the old Roblox font, so OCR the prompt too ("Make Honey", "Collect Honey"...)
+		if ((Gdip_ImageSearch(pBMScreen, bitmaps["makehoney"], , , , , , 2, , 2) = 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["colhey"], , , , , , 2, , 2) = 1)
+			|| nm_OCRFindPhrase(pBMScreen, ["makehoney", "collecthoney", "makinghoney", "collectpollen"], 2)){
+			Gdip_DisposeImage(pBMScreen)
+			return 1
+		}
+		if (A_Index < 25)
+			Gdip_DisposeImage(pBMScreen), Sleep(300)
 	}
-	; keep a snapshot of what was checked (at most once a minute) for diagnosing reset loops
+	; keep a snapshot of what was checked (at most once a minute) for diagnosing reset loops,
+	; with the words OCR actually read (this used to pass 0, so the log always said "OCR did not run")
 	static lastDump := 0
-	if (A_TickCount - lastDump > 60000)
-		lastDump := A_TickCount, nm_OCR_SaveDebug(pBMScreen, 0, "hive_fail")
+	if (A_TickCount - lastDump > 60000) {
+		lastDump := A_TickCount, result := 0
+		try result := nm_OCR_FromBitmap(pBMScreen, 2, 0)
+		nm_OCR_SaveDebug(pBMScreen, result, "hive_fail")
+		; whole Roblox window too, to see where the character actually is when the prompt is missing
+		try {
+			pBMFull := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|" windowHeight)
+			Gdip_SaveBitmapToFile(pBMFull, nm_OCR_RootDir() "\tools\OCR_debug\hive_fail_full.png")
+			Gdip_DisposeImage(pBMFull)
+		}
+	}
 	Gdip_DisposeImage(pBMScreen)
 	return 0
 }
