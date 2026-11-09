@@ -12580,13 +12580,13 @@ nm_Reset(checkAll := 1, wait:=2000, convert := 1, force := 0)
 		KeyWait "F14", "T20 L"
 		nm_endWalk()
 		sleep 500
-		if nm_ConfirmAtHive()
+		if nm_ConfirmAtHive("hive_fail_walk") ; separate dump: shows where the walk to the hive slot ended up
 		{
 			if (nm_SetHiveCameraDirection() > 0)
 				HiveConfirmed := 1
 			break
 		}
-		nm_setStatus("Warning", "Hive prompt not found at hive slot " HiveSlot " - check Hive Slot matches your claimed hive")
+		nm_setStatus("Warning", "Hive prompt not found at hive slot " HiveSlot " - check Hive Slot matches your claimed hive (see tools\OCR_debug\hive_fail_walk_full.png)")
 		if spawnSeen ; old behaviour: baseplate was recognised, so carry on as before
 			break
 	}
@@ -12652,7 +12652,7 @@ nm_HealthBar()
 
     return grey > 20
 }
-nm_ConfirmAtHive(){
+nm_ConfirmAtHive(tag := "hive_fail"){
 	; offsetY was never set in this function (an unset variable, silenced by #Warn VarUnset Off and the
 	; error handler), so the check area ignored the GUI offset and the window's position: it only lined up
 	; for fullscreen Roblox with offset 0, and missed the prompt for everyone else -> endless resets
@@ -12673,15 +12673,15 @@ nm_ConfirmAtHive(){
 	}
 	; keep a snapshot of what was checked (at most once a minute) for diagnosing reset loops,
 	; with the words OCR actually read (this used to pass 0, so the log always said "OCR did not run")
-	static lastDump := 0
-	if (A_TickCount - lastDump > 60000) {
-		lastDump := A_TickCount, result := 0
+	static lastDump := Map()
+	if (A_TickCount - (lastDump.Has(tag) ? lastDump[tag] : -60001) > 60000) {
+		lastDump[tag] := A_TickCount, result := 0
 		try result := nm_OCR_FromBitmap(pBMScreen, 2, 0)
-		nm_OCR_SaveDebug(pBMScreen, result, "hive_fail")
+		nm_OCR_SaveDebug(pBMScreen, result, tag)
 		; whole Roblox window too, to see where the character actually is when the prompt is missing
 		try {
 			pBMFull := Gdip_BitmapFromScreen(windowX "|" windowY "|" windowWidth "|" windowHeight)
-			Gdip_SaveBitmapToFile(pBMFull, nm_OCR_RootDir() "\tools\OCR_debug\hive_fail_full.png")
+			Gdip_SaveBitmapToFile(pBMFull, nm_OCR_RootDir() "\tools\OCR_debug\" tag "_full.png")
 			Gdip_DisposeImage(pBMFull)
 		}
 	}
