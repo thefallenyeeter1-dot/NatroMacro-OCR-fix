@@ -157,6 +157,9 @@ if (ocr_enabled = 1)
 ; HONEY MONITORING
 ; honey_values format: (A_Min):value
 honey_values := Map()
+; quick picture-only honey reads taken every 12 s between the minute readings ([tick, value]), used to cross-check
+; each minute's reading; cleared by every minute reading
+honey_samples := []
 
 ; obtain start honey
 start_honey := 0
@@ -553,6 +556,12 @@ Loop
 
 	; detect buffs every 6 seconds
 	DetectBuffs()
+
+	; quick honey read every 12 s between the minute readings (digit pictures only, no OCR, so it never slows
+	; the buff checks); these cross-check the next minute reading
+	if ((ocr_enabled = 1) && (Mod(time_value, 2) = 0) && (Mod(time_value, 10) != 0))
+		if (v := HoneyQuickRead())
+			honey_samples.Push([A_TickCount, v])
 
 	; detect honey every minute if ocr is enabled
 	if ((ocr_enabled = 1) && ((Mod(time_value, 10) = 0) || (last_honey && time > last_honey + 580000000)))
@@ -1044,37 +1053,90 @@ DetectHoney()
 	; can't cut the digits in half, which made the old fixed-box read return things like "4".
 	current_honey := ReadHoneyCounter(windowX, windowY, windowWidth, offsetY)
 
-	; plausibility check: a misread usually drops or adds a digit (or misreads the first one), so a reading with a
-	; different number of digits than the last good one, or more than double / less than half of it, is only
-	; accepted once the next minute's reading agrees with it (same digit count, same ballpark). Normal growth,
-	; even fast growth on a small account, keeps the digit count and passes straight away. Until two readings
-	; agree, the session start honey is provisional and is corrected along with them.
-	static lastGood := 0, lastLen := 0, pending := 0, pendingLen := 0, startConfirmed := 0, firstReads := []
-	if current_honey
+	; Checks, so one misread can't skew the graph or the totals, while real big jumps are kept:
+	; - the session's first reading (it becomes the start honey) is only kept if a second read agrees
+	; - a reading that jumps further than any real change seen recently (or drops) is read again and only kept if
+	;   two reads agree. A reading confirmed like this is real (e.g. the first balloon convert after you spent most
+	;   of your honey before starting, which can be 10x your total), so the ballpark check below doesn't apply
+	; - an unconfirmed reading more than double / less than half the last one needs the next minute to agree
+	static lastGood := 0, pending := 0, lastGoodTick := 0, recentRates := [], liveSpent := 0
+	confirmed := 0
+
+	; cross-check with this minute's quick reads (every 12 s): the reading should sit within the range they
+	; covered (plus a margin for honey still climbing during a convert). Agreeing with them counts as confirmed;
+	; disagreeing gets the reading read again
+	global honey_samples
+	sampleCheck := 0, spread := 0
+	if current_honey && (honey_samples.Length >= 3)
 	{
-		len := StrLen(Format("{:.0f}", current_honey))
-		if lastGood && ((len != lastLen) || (current_honey > lastGood*2) || (current_honey < lastGood*0.5))
-		{
-			if pending && (len = pendingLen) && (current_honey <= pending*2) && (current_honey >= pending*0.5)
-			{
-				lastGood := current_honey, lastLen := len, pending := 0 ; two readings agree: the earlier value was the misread
-				if !startConfirmed
-					start_honey := current_honey, startConfirmed := 1, firstReads := [] ; the earlier readings were the misreads
-			}
-			else
-				pending := current_honey, pendingLen := len, current_honey := 0 ; skip this minute
-		}
+		vals := []
+		for smp in honey_samples
+			vals.Push(smp[2])
+		vals := HoneySorted(vals)
+		if (vals.Length >= 4) ; one bad quick read can't stretch the range
+			vals.RemoveAt(vals.Length), vals.RemoveAt(1)
+		lo := vals[1], hi := vals[vals.Length], spread := hi - lo
+		tol := Max(2000, spread, hi * 0.00002)
+		sampleCheck := ((current_honey >= lo - tol) && (current_honey <= hi + tol)) ? 1 : -1
+		try FileAppend FormatTime(, "HH:mm:ss") "  cross-check with " honey_samples.Length " quick reads (" lo "-" hi "): " (sampleCheck = 1 ? "agrees" : "disagrees, rechecking") "`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+	}
+	honey_samples := []
+
+	if current_honey && !lastGood
+	{
+		if (sampleCheck = 1)
+			confirmed := 1
 		else
 		{
-			if lastGood
-			{
-				startConfirmed := 1
-				global honey_read_source, honey_read_digits
-				if (honey_read_source = "ocr") ; OCR agreed on it and it fits the previous reading: learn its digits
-					HoneyLearn(honey_read_digits)
-			}
-			lastGood := current_honey, lastLen := len, pending := 0
+			current_honey := HoneyConfirm(current_honey, current_honey, windowX, windowY, windowWidth, offsetY, Max(2000, current_honey * 0.002, spread))
+			confirmed := (current_honey != 0)
 		}
+	}
+	else if current_honey && (sampleCheck = 1)
+		confirmed := 1
+	else if current_honey && (sampleCheck = -1)
+	{
+		current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(2000, spread))
+		confirmed := (current_honey != 0)
+	}
+	else if current_honey
+	{
+		mins := Max(1, (A_TickCount - lastGoodTick) / 60000)
+		maxRate := 0
+		for r in recentRates
+			maxRate := Max(maxRate, r)
+		floorRate := Max(lastGood * 0.0002, 2000)
+		change := current_honey - lastGood
+		if (change > Max(maxRate * 3, floorRate) * mins) || (change < -Max(maxRate, floorRate))
+		{
+			current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(maxRate, 2000))
+			confirmed := (current_honey != 0)
+		}
+	}
+
+	if current_honey && lastGood && !confirmed && ((current_honey > lastGood*2) || (current_honey < lastGood*0.5))
+	{
+		if pending && (current_honey <= pending*2) && (current_honey >= pending*0.5)
+			pending := 0 ; two minutes agree: it's real
+		else
+			pending := current_honey, current_honey := 0 ; skip this minute
+	}
+
+	if current_honey
+	{
+		if lastGood
+		{
+			global honey_read_source, honey_read_digits
+			if (honey_read_source = "ocr") && !confirmed ; OCR's reading fits the previous one: learn its digits
+				HoneyLearn(honey_read_digits)
+			recentRates.Push(Abs(current_honey - lastGood) / Max(1, (A_TickCount - lastGoodTick) / 60000))
+			if (recentRates.Length > 30)
+				recentRates.RemoveAt(1)
+			; honey spent (shops, items...) isn't lost income: every drop between accepted readings is added back
+			if (current_honey < lastGood)
+				liveSpent += lastGood - current_honey
+		}
+		lastGood := current_honey, pending := 0, lastGoodTick := A_TickCount
 	}
 
 	; update honey values array and write values to ini
@@ -1082,30 +1144,15 @@ DetectHoney()
 	if current_honey
 	{
 		honey_values[index] := current_honey
-		; the startup read failed: count the session from the first good reading instead of from 0
+		; the session starts from the first (confirmed) reading. It used to be the median of the first 5 readings,
+		; which cut the first convert out of Session Honey when it happened in the first few minutes
 		; (IsSet: during the startup read itself start_honey doesn't exist yet, and reading it would throw)
 		if (!IsSet(start_honey) || !start_honey)
 			start_honey := current_honey
-		; the session's starting honey is the median of the first 5 accepted readings, not just the first one:
-		; a single misread at the start (same number of digits, so it passes the checks) would otherwise skew
-		; Session Honey and the Hourly Average for the whole session
-		if (firstReads.Length < 5)
-		{
-			firstReads.Push(current_honey)
-			sorted := []
-			for v in firstReads
-			{
-				i := sorted.Length + 1
-				while (i > 1 && sorted[i-1] > v)
-					i--
-				sorted.InsertAt(i, v)
-			}
-			start_honey := sorted[(sorted.Length + 1) // 2]
-		}
 		if (FileExist("settings\nm_config.ini") && IsSet(start_time))
 		{
 			session_time := DateDiff(A_Now, start_time, "S")
-			session_total := current_honey - start_honey
+			session_total := current_honey - start_honey + liveSpent
 			try IniWrite FormatNumber(session_total), "settings\nm_config.ini", "Status", "SessionTotalHoney"
 			try IniWrite FormatNumber(session_total*3600.0/session_time), "settings\nm_config.ini", "Status", "HoneyAverage"
 		}
@@ -1113,6 +1160,84 @@ DetectHoney()
 	}
 	else
 		return 0
+}
+
+/********************************************************************************************************
+* @description: a honey reading that changed suspiciously much is read up to 2 more times; returns a value two
+*   reads agree on (honey can move a little between reads, e.g. while converting), or 0 to skip this minute.
+*   Every recheck is written to tools\OCR_debug\honey_log.txt
+********************************************************************************************************/
+HoneyConfirm(first, last, winX, winY, winW, offsetY, tol)
+{
+	; While converting balloons honey climbs very fast, so two reads under a second apart can differ by more than
+	; the usual tolerance. They still differ by only a few % of the change being checked, while a misread digit
+	; differs from the real value by about the whole change, so allow 5% of the change too
+	tol := Max(tol, Abs(first - last) * 0.05)
+	reads := [first], result := 0
+	Loop 2
+	{
+		Sleep 400
+		if (v := ReadHoneyCounter(winX, winY, winW, offsetY))
+			reads.Push(v)
+		for i, a in reads
+			for j, b in reads
+				if (j > i) && (Abs(a - b) <= tol)
+				{
+					result := Max(a, b)
+					break 3
+				}
+	}
+	try
+	{
+		str := ""
+		for v in reads
+			str .= (A_Index > 1 ? ", " : "") v
+		FileOpen(nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt", "a").Write(FormatTime(, "yyyy-MM-dd HH:mm:ss") " recheck (last good " last "): reads " str " -> " (result ? "kept " result : "skipped minute") "`n")
+	}
+	return result
+}
+
+; copy of an array of numbers, sorted smallest first
+HoneySorted(arr)
+{
+	sorted := []
+	for v in arr
+	{
+		i := sorted.Length + 1
+		while (i > 1 && sorted[i-1] > v)
+			i--
+		sorted.InsertAt(i, v)
+	}
+	return sorted
+}
+
+; median of an array of numbers (0 for an empty array)
+HoneyMedian(arr)
+{
+	if !arr.Length
+		return 0
+	sorted := HoneySorted(arr)
+	return sorted[(sorted.Length + 1) // 2]
+}
+
+; Quick honey read for the 12-second cross-check samples: the digit pictures only, at the remembered "Honey"
+; label position (no OCR at all), so it is cheap. Returns 0 when the pictures can't read it
+HoneyQuickRead()
+{
+	if !(hwnd := GetRobloxHWND())
+		return 0
+	GetRobloxClientPos(hwnd), offsetY := GetYOffset(hwnd)
+	if !(windowHeight >= 500)
+		return 0
+	; same read area as ReadHoneyCounter, so the remembered label position fits
+	x0 := Max(0, windowWidth//2 - 520), w := Min(530, windowWidth - x0)
+	h := Min(170, Max(90, offsetY + 70))
+	pBM := Gdip_BitmapFromScreen(windowX + x0 "|" windowY "|" w "|" h)
+	digits := HoneyReadDigits(pBM, w, h, 1)
+	Gdip_DisposeImage(pBM)
+	if (digits = "")
+		return 0
+	return ((StrLen(digits) > 19) || (StrLen(digits) = 19 && StrCompare(digits, "9223372036854775807") > 0)) ? Float(digits) : Integer(digits)
 }
 
 /********************************************************************************************************
@@ -1237,13 +1362,15 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 }
 
 ; finds the "Honey" label in the honey read area with OCR; returns its word box or 0
-HoneyLabel(pBM)
+HoneyLabel(pBM, quick := 0)
 {
 	; the label's position is remembered: OCR sometimes misses the word even though nothing has moved, and
 	; without the label the digit pictures can't be used at all. The remembered position is only reused for
 	; a read area of the same size (same window size)
 	static last := 0, lastSize := ""
 	size := Gdip_GetImageWidth(pBM) "x" Gdip_GetImageHeight(pBM)
+	if quick ; quick reads (every 12 s) use the remembered position only, never OCR
+		return (last && size = lastSize) ? last : 0
 	if (result := nm_OCR_FromBitmap(pBM, 3, 0))
 		for word in result.Words
 			if (nm_OCR_MatchDistance("honey", nm_OCR_Norm(word.Text)) <= 1)
@@ -1258,7 +1385,7 @@ HoneyLabel(pBM)
 ; into characters (digits ~5 px wide, commas 2 px) and each digit is matched against 9x6 pictures of BSS's
 ; honey font, taken from real captures. Returns the digits (no commas), or "" if anything doesn't fit (other
 ; screen sizes draw the digits at a different size, and then OCR is used instead).
-HoneyReadDigits(pBM, w, h)
+HoneyReadDigits(pBM, w, h, quick := 0)
 {
 	; 61 example digits from real captures at two different screen sizes (9 and 10 px tall). Each is stored
 	; as how much of every cell is yellow on three grids (6x9, 5x8, 7x10), values 0-9. Comparing these
@@ -1348,7 +1475,7 @@ HoneyReadDigits(pBM, w, h)
 		honey_templates := parsed
 	}
 	honey_glyph_feats := []
-	if !(label := HoneyLabel(pBM))
+	if !(label := HoneyLabel(pBM, quick))
 		return ""
 	rx1 := Min(w - 1, Round(label.x + label.w) + 2), rx2 := w
 	ry1 := Max(0, Round(label.y - label.h * 0.8)), ry2 := Min(h, Round(label.y + label.h * 1.8))
@@ -1683,7 +1810,7 @@ HoneyFromOCR(result, areaW)
 SendHourlyReport()
 {
 	global pBM, regions, stat_regions, honey_values, honey_12h, backpack_values, buff_values, buff_colors, status_changes, start_time, start_honey, stats, latest_boost, latest_winds, graph_regions, version, natro_version, os_version, bitmaps, ocr_enabled, ocr_language, report_forced
-	static honey_average := 0, honey_earned := 0, convert_time := 0, gather_time := 0, other_time := 0, stats_old := [["Total Boss Kills",0],["Total Vic Kills",0],["Total Bug Kills",0],["Total Planters",0],["Quests Done",0],["Disconnects",0]]
+	static session_spent := 0, honey_average := 0, honey_earned := 0, convert_time := 0, gather_time := 0, other_time := 0, stats_old := [["Total Boss Kills",0],["Total Vic Kills",0],["Total Bug Kills",0],["Total Planters",0],["Quests Done",0],["Disconnects",0]]
 	; a ?hr report is a snapshot: remember the hour-to-hour values so it doesn't change what the next scheduled report compares against
 	if report_forced
 		saved_statics := [honey_average, honey_earned, convert_time, gather_time, other_time]
@@ -1697,9 +1824,13 @@ SendHourlyReport()
 		; identify and exterminate misread values
 		max_value := maxX(honey_values)
 
-		str := ""
-		for k,v in honey_values
-			if (v < max_value//8) ; any value smaller than this is regarded as a misread
+		; a value smaller than this is only a misread if the readings on both sides of it are high (a one-off dip).
+		; A low stretch is real: spending most of your honey, or starting low and then converting a big balloon
+		str := "", keys := []
+		for k in honey_values
+			keys.Push(k)
+		for i, k in keys
+			if (honey_values[k] < max_value//8) && (i > 1) && (i < keys.Length) && (honey_values[keys[i-1]] >= max_value//8) && (honey_values[keys[i+1]] >= max_value//8)
 				str .= (StrLen(str) ? " " : "") k
 
 		Loop Parse str, A_Space
@@ -1707,18 +1838,43 @@ SendHourlyReport()
 
 		; remove one-minute spikes: a reading well above or below BOTH neighbouring readings is a misread
 		; (a real change, like converting or spending, stays at the new level and isn't affected)
-		keys := [], bad := []
+		; The tolerance comes from this hour's typical minute-to-minute change: the old 2%-of-total tolerance was
+		; bigger than a whole hour's income on large accounts, so misread digits in the middle got through.
+		; Two passes, so a misread next to another one is caught once the first is gone.
+		Loop 2
+		{
+			keys := [], bad := [], steps := []
+			for k in honey_values
+				keys.Push(k)
+			Loop Max(0, keys.Length - 1)
+				steps.Push(Abs(honey_values[keys[A_Index+1]] - honey_values[keys[A_Index]]))
+			typical := HoneyMedian(steps)
+			Loop Max(0, keys.Length - 2)
+			{
+				a := honey_values[keys[A_Index]], b := honey_values[keys[A_Index+1]], c := honey_values[keys[A_Index+2]]
+				lo := Min(a, c), hi := Max(a, c), tol := Max(1000, typical * 3, hi * 0.00002)
+				if (b > hi + tol) || (b < lo - tol)
+					bad.Push(keys[A_Index+1])
+			}
+			for k in bad
+				honey_values.Delete(k)
+		}
+
+		; the newest reading has no later neighbour for the check above, but it is the hour's end value (Honey
+		; Earned, Session Honey and next hour's start), so it must not jump further than the hour's biggest real
+		; change. Dropping a real jump is harmless: it is counted in the next hour instead
+		keys := []
 		for k in honey_values
 			keys.Push(k)
-		Loop Max(0, keys.Length - 2)
+		if (keys.Length >= 4)
 		{
-			a := honey_values[keys[A_Index]], b := honey_values[keys[A_Index+1]], c := honey_values[keys[A_Index+2]]
-			lo := Min(a, c), hi := Max(a, c), tol := Max(1000, hi * 0.02)
-			if (b > hi + tol) || (b < lo - tol)
-				bad.Push(keys[A_Index+1])
+			maxStep := 0
+			Loop keys.Length - 2
+				maxStep := Max(maxStep, Abs(honey_values[keys[A_Index+1]] - honey_values[keys[A_Index]]) / Max(1, keys[A_Index+1] - keys[A_Index]))
+			z := honey_values[keys[keys.Length]], y := honey_values[keys[keys.Length-1]]
+			if (Abs(z - y) > Max(maxStep * 2, 1000, y * 0.00002) * Max(1, keys[keys.Length] - keys[keys.Length-1]))
+				honey_values.Delete(keys[keys.Length])
 		}
-		for k in bad
-			honey_values.Delete(k)
 
 		min_value := minX(honey_values), max_value := Max(maxX(honey_values), min_value+1000), range_value := max_value - min_value
 	}
@@ -2121,13 +2277,20 @@ SendHourlyReport()
 		cumul_total_rounded := Round(cumul_total)
 	}
 
+	; honey spent this hour (shops, items...): every drop is added back, so Honey Earned and Session Honey show
+	; what was made, not just what is left. Spending also stays out of the Honey/Sec graph (drops draw as 0)
+	hour_spent := 0
+	Loop 60
+		if (honey_values[A_Index] < honey_values[A_Index-1])
+			hour_spent += honey_values[A_Index-1] - honey_values[A_Index]
+
 	; session stats
 	current_honey := honey_values[60]
-	session_total := current_honey - start_honey
+	session_total := current_honey - start_honey + session_spent + hour_spent
 
 	; last hour stats
-	hour_increase := (honey_values[60] - honey_values[0] < honey_earned) ? "0" : "1"
-	honey_earned := honey_values[60] - honey_values[0]
+	hour_increase := (honey_values[60] - honey_values[0] + hour_spent < honey_earned) ? "0" : "1"
+	honey_earned := honey_values[60] - honey_values[0] + hour_spent
 	average_difference := honey_average ? ((session_total * 3600.0 / session_time) - honey_average) : 0
 	honey_change := (average_difference = 0) ? "(+0%)" : (average_difference > 0) ? "(+" . Ceil(average_difference * 100 / Abs(honey_average)) . "%)" : "(" . Floor(average_difference * 100 / Abs(honey_average)) . "%)"
 	honey_average := session_total * 3600.0 / session_time
@@ -2616,6 +2779,7 @@ else
 	; save old stats for comparison
 	for k,v in stats_old
 		v[2] := stats[k][2]
+	session_spent += hour_spent
 	; reset honey values map
 	honey_values.Clear()
 	honey_values[0] := current_honey
