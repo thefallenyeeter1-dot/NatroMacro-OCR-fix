@@ -27,7 +27,10 @@ SetWorkingDir A_ScriptDir "\.."
 
 
 ; set version number
-version := "Baddie Mon"
+; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
+; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
+fork_name := "Baddie Mon"
+version := "1.4.1"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -322,7 +325,7 @@ if ((A_Args.Length > 0) && (natro_version := A_Args[1]))
 
 ; FORM MESSAGE
 message := "Hourly Reports will start sending in **" DurationFromSeconds(60*(59-A_Min)+(60-A_Sec), "m'm 's's'") "**\n"
-	. "Version: **StatMonitor v" version "**\n"
+	. "Version: **Patch v" version "**\n"
 	. "Detected OS: **" os_version "**\n"
 	. (ocr_enabled ? "OCR Status: **Enabled (" ocr_language ")**\nCurrent Honey: **" (start_honey ? FormatNumber(start_honey) : "N/A") "**"
 		: "OCR Status: **Disabled**\n**Honey Graphs will be empty.**")
@@ -931,8 +934,18 @@ ReadBuffStack(pBMArea, x1, y1, x2, y2, maxVal := 10, key := "")
 		n := 10
 	else if (maxVal = 10) && ((n := nm_OCR_BuffDigit(pBMArea, x1, y1, x2, y2)) != "")
 		n := n
-	else if ((n := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal)) = "")
+	else if (maxVal = 10) && ((n := BuffLearnedMatch(pBMArea, key, x1, y1, x2, y2)) != "")
+		n := n ; digit pictures this PC has learned (see BuffLearnSample)
+	else if ((n := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal, &box)) = "")
 		n := StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
+	else if (maxVal = 10) && (key != "") && !BuffLearnedHas(key, n)
+	{
+		; learning: no picture knows this number yet, so confirm the whole-bar OCR read with the separate close-up
+		; read of the SAME screenshot (no time passes, so fast-changing stacks don't matter). If both agree, the
+		; look of this number is collected; it is only trusted after 3 alike confirmations
+		if (StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal) = n)
+			BuffLearnSample(pBMArea, key, n, box)
+	}
 	if (n != "")
 	{
 		if (key != "")
@@ -944,8 +957,192 @@ ReadBuffStack(pBMArea, x1, y1, x2, y2, maxVal := 10, key := "")
 	return 1
 }
 
+;  ---------------------------------------------------------------------------------------------------
+;  SELF-LEARNING BUFF STACK PICTURES
+;  When OCR reads a stack number that no picture knows yet, and two independent OCR reads of the same
+;  screenshot agree (whole buff bar + close-up), the number's look is cut out: its white fill and dark outline
+;  are kept, the icon behind it is ignored (magenta). Once the same look has been confirmed 3 times for the
+;  same buff and number it is saved to settings\buff_digits_learned\<buff>_<number>_<n>.png (up to 3 per
+;  number) and from then on matched like the built-in pictures. If a look ever matches two different numbers
+;  it is thrown away. So after a font change, or on a PC that draws the icons differently, stack reading
+;  recovers by itself. Log: tools\OCR_debug\buff_learn_log.txt
+;  ---------------------------------------------------------------------------------------------------
+
+; Map buff -> Map number -> [bitmaps] of trusted learned pictures (loaded once from disk)
+BuffLearned()
+{
+	static learned := 0
+	if !IsObject(learned)
+	{
+		learned := Map()
+		Loop Files A_WorkingDir "\settings\buff_digits_learned\*.png"
+		{
+			if !RegExMatch(A_LoopFileName, "^([a-z]+)_(\d+)_\d+\.png$", &m)
+				continue
+			if !(pBM := Gdip_CreateBitmapFromFile(A_LoopFileFullPath))
+				continue
+			if !learned.Has(m[1])
+				learned[m[1]] := Map()
+			if !learned[m[1]].Has(Integer(m[2]))
+				learned[m[1]][Integer(m[2])] := []
+			learned[m[1]][Integer(m[2])].Push(pBM)
+		}
+	}
+	return learned
+}
+
+BuffLearnedHas(key, n) => BuffLearned().Has(key) && BuffLearned()[key].Has(n)
+
+; stack number from this buff's learned pictures, or "" (also "" if pictures of two different numbers match)
+BuffLearnedMatch(pBMArea, key, x1, y1, x2, y2)
+{
+	learned := BuffLearned()
+	if (key = "") || !learned.Has(key)
+		return ""
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	found := ""
+	for n, list in learned[key]
+		for pT in list
+			if (Gdip_ImageSearch(pBMArea, pT, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 10), Min(h, y2 + 4), 70, 0xFF00FF) = 1)
+			{
+				if (found != "") && (found != n)
+					return ""
+				found := n
+				break
+			}
+	return found
+}
+
+; Cut-out of a stack number: white fill -> white, dark outline -> black, everything else (the icon) -> magenta
+; (ignored when matching). 0 if it doesn't contain enough of both to be a number
+BuffDigitMask(pBM, x, y, w, h)
+{
+	pM := Gdip_CloneBitmapArea(pBM, x, y, w, h)
+	white := 0, dark := 0
+	Loop h
+	{
+		py := A_Index - 1
+		Loop w
+		{
+			px := A_Index - 1, c := Gdip_GetPixel(pM, px, py)
+			r := (c >> 16) & 255, g := (c >> 8) & 255, b := c & 255
+			if (Min(r, g, b) >= 190)
+				Gdip_SetPixel(pM, px, py, 0xFFFFFFFF), white++
+			else if (Max(r, g, b) <= 70)
+				Gdip_SetPixel(pM, px, py, 0xFF000000), dark++
+			else
+				Gdip_SetPixel(pM, px, py, 0xFFFF00FF)
+		}
+	}
+	if (white < 15) || (dark < 10)
+	{
+		Gdip_DisposeImage(pM)
+		return 0
+	}
+	return pM
+}
+
+; two cut-outs show the same thing (allowing a 1 px shift either way)
+BuffDigitAlike(pA, pB)
+{
+	for pair in [[pA, pB], [pB, pA]]
+	{
+		big := pair[1], small := pair[2]
+		sw := Gdip_GetImageWidth(small) - 2, sh := Gdip_GetImageHeight(small) - 2
+		if (sw < 3) || (sh < 3) || (sw > Gdip_GetImageWidth(big)) || (sh > Gdip_GetImageHeight(big))
+			continue
+		pInner := Gdip_CloneBitmapArea(small, 1, 1, sw, sh)
+		r := Gdip_ImageSearch(big, pInner, , , , , , 40, 0xFF00FF)
+		Gdip_DisposeImage(pInner)
+		if (r = 1)
+			return 1
+	}
+	return 0
+}
+
+BuffLearnLog(msg)
+{
+	try FileAppend FormatTime(, "yyyy-MM-dd HH:mm:ss") "  " msg "`n", nm_OCR_RootDir() "\tools\OCR_debug\buff_learn_log.txt"
+}
+
+; collects one OCR-confirmed look of buff `key` showing number `n` (box = the OCR word's position)
+BuffLearnSample(pBMArea, key, n, box)
+{
+	static pending := Map() ; "key|n" -> [[cut-out, confirmations], ...]
+	if !RegExMatch(key, "^[a-z]+$")
+		return
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	bx := Max(0, Round(box.x) - 1), by := Max(0, Round(box.y) - 1)
+	bw := Min(w - bx, Round(box.w) + 2), bh := Min(h - by, Round(box.h) + 2)
+	if (bw < 5) || (bh < 6) || (bw > 40) || (bh > 30)
+		return
+	if !(pS := BuffDigitMask(pBMArea, bx, by, bw, bh))
+		return
+	id := key "|" n
+	if !pending.Has(id)
+		pending[id] := []
+	for i, c in pending[id]
+	{
+		if !BuffDigitAlike(c[1], pS)
+			continue
+		Gdip_DisposeImage(pS)
+		c[2] += 1
+		if (c[2] >= 3)
+		{
+			pending[id].RemoveAt(i)
+			BuffLearnPromote(key, n, c[1])
+		}
+		return
+	}
+	if (pending[id].Length >= 6) ; keep only the newest looks while none has 3 confirmations
+		Gdip_DisposeImage(pending[id].RemoveAt(1)[1])
+	pending[id].Push([pS, 1])
+}
+
+; a look confirmed 3 times becomes a trusted picture, unless it looks like a different number's picture
+BuffLearnPromote(key, n, pT)
+{
+	learned := BuffLearned()
+	dir := A_WorkingDir "\settings\buff_digits_learned"
+	if learned.Has(key)
+		for m, list in learned[key]
+		{
+			if (m = n)
+				continue
+			for pOther in list
+				if BuffDigitAlike(pOther, pT)
+				{
+					; the same look was confirmed as two different numbers: trust neither
+					for pX in list
+						Gdip_DisposeImage(pX)
+					learned[key].Delete(m)
+					Loop Files dir "\" key "_" m "_*.png"
+						try FileDelete A_LoopFileFullPath
+					Gdip_DisposeImage(pT)
+					BuffLearnLog(key " x" n " looks like x" m ": both thrown away")
+					return
+				}
+		}
+	if !learned.Has(key)
+		learned[key] := Map()
+	if !learned[key].Has(n)
+		learned[key][n] := []
+	if (learned[key][n].Length >= 3)
+	{
+		Gdip_DisposeImage(pT)
+		return
+	}
+	try DirCreate dir
+	k := 1
+	while FileExist(dir "\" key "_" n "_" k ".png")
+		k++
+	try Gdip_SaveBitmapToFile(pT, dir "\" key "_" n "_" k ".png")
+	learned[key][n].Push(pT)
+	BuffLearnLog("learned " key " x" n " (picture " k ")")
+}
+
 ; picks the stack number out of OCR words whose centre lies in the area; prefers "x5"-style tokens
-StackFromWords(words, x1, y1, x2, y2, maxVal)
+StackFromWords(words, x1, y1, x2, y2, maxVal, &box?)
 {
 	for pass in [1, 2]
 	{
@@ -961,7 +1158,10 @@ StackFromWords(words, x1, y1, x2, y2, maxVal)
 			t := StrReplace(StrReplace(StrReplace(t, "O", "0"), "S", "5"), "B", "8") ; common OCR digit mix-ups
 			t := RegExReplace(t, "[Il|]", "1")
 			if IsInteger(t) && (t >= 2) && (t <= maxVal)
+			{
+				box := word
 				return Integer(t)
+			}
 		}
 	}
 	return ""
@@ -2568,6 +2768,14 @@ else
 
 
 
+	; row 1: patch version (line above the timestamp)
+	y := stat_regions["info"][2]+60
+	pos := Gdip_TextToGraphics(G, "Patch v" version, "s56 Center Bold c00ffffff x" stat_regions["info"][1]+stat_regions["info"][3]//2 " y" y, "Segoe UI")
+	x := SubStr(pos, 1, InStr(pos, "|", , , 1)-1)
+	pos := Gdip_TextToGraphics(G, "Patch ", "s56 Left Bold cafffffff x" x " y" y, "Segoe UI")
+	x := SubStr(pos, 1, InStr(pos, "|", , , 1)-1)+SubStr(pos, InStr(pos, "|", , , 2)+1, InStr(pos, "|", , , 3)-InStr(pos, "|", , , 2)-1)
+	Gdip_TextToGraphics(G, "v" version, "s56 Left Bold cffffda3d x" x " y" y, "Segoe UI")
+
 	; row 2: report timestamp
 	y := stat_regions["info"][2]+140
 	FormatStr := Buffer(256), DllCall("GetLocaleInfoEx", "Ptr",0, "UInt",0x20, "Ptr",FormatStr.Ptr, "Int",256)
@@ -2603,7 +2811,7 @@ else
 		y := stat_regions["info"][2]+380
 		x := stat_regions["info"][1]+stat_regions["info"][3]//2-50
 
-		pos := Gdip_TextToGraphics(G, "Natro v" version, "s56 Left Bold c00ffffff x" x " y" y, "Segoe UI")
+		pos := Gdip_TextToGraphics(G, "Natro v" natro_version, "s56 Left Bold c00ffffff x" x " y" y, "Segoe UI")
 		x -= SubStr(pos, InStr(pos, "|", , , 2)+1, InStr(pos, "|", , , 3)-InStr(pos, "|", , , 2)-1)/2
 		pos := Gdip_TextToGraphics(G, "discord.gg/natromacro", "s56 Left Bold c00ffffff x" x " y" y, "Segoe UI")
 		x -= SubStr(pos, InStr(pos, "|", , , 2)+1, InStr(pos, "|", , , 3)-InStr(pos, "|", , , 2)-1)/2
@@ -2611,7 +2819,7 @@ else
 		pos := Gdip_TextToGraphics(G, "discord.gg/natromacro", "s56 Left Bold Underline cff3366cc x" x " y" y, "Segoe UI")
 		x := SubStr(pos, 1, InStr(pos, "|", , , 1)-1)+SubStr(pos, InStr(pos, "|", , , 2)+1, InStr(pos, "|", , , 3)-InStr(pos, "|", , , 2)-1)
 		Gdip_DrawImage(G, bitmaps["pBMNatroLogo"], x+10, y, 80, 80)
-		Gdip_TextToGraphics(G, "Natro v" version, "s56 Left Bold cffb47bd1 x" x+100 " y" y, "Segoe UI")
+		Gdip_TextToGraphics(G, "Natro v" natro_version, "s56 Left Bold cffb47bd1 x" x+100 " y" y, "Segoe UI")
 	}
 
 	Gdip_DeleteGraphics(G)
