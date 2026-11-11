@@ -1731,7 +1731,7 @@ Gdip_SaveBitmapToFile(pBitmap, sOutput, Quality:=75)
 
 Gdip_SaveBitmapToStream(pBitmap, Extension:="PNG", Quality:=90)
 {
-	_p := 0
+	pCodec := 0, ep := 0
 
 	if (!RegExMatch(extension, "^(?i:BMP|DIB|RLE|JPG|JPEG|JPE|JFIF|GIF|TIF|TIFF|PNG)$")) {
 		return -1
@@ -1776,7 +1776,9 @@ Gdip_SaveBitmapToStream(pBitmap, Extension:="PNG", Quality:=90)
 	}
 
 	DllCall("ole32\CreateStreamOnHGlobal", "Ptr",0, "Int",true, "ptr*",&pStream:=0)
-	DllCall("gdiplus\GdipSaveImageToStream", "Ptr",pBitmap, "Ptr",pStream, "Ptr",pCodec, "uint", _p ? _p : 0)
+	; pass the JPEG quality parameters built above (they used to be built but never passed, so every JPEG
+	; came out at GDI+'s default quality whatever Quality was asked for)
+	DllCall("gdiplus\GdipSaveImageToStream", "Ptr",pBitmap, "Ptr",pStream, "Ptr",pCodec, "Ptr", ep ? ep.Ptr : 0)
 	return pStream
 }
 

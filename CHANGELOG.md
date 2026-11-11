@@ -17,6 +17,30 @@ extensions). Each has its own GitHub upload set: `NatroMacro-OCR-fix-upload` (ma
 
 ---
 
+## v1.4.6 – report JPEG quality actually applied
+- Checked the Discord size fallback: a report PNG over 9.5 MB (Discord's limit is 10 MB) is sent as a JPEG
+  instead, with the right file name, type and embed link. Tested with the photo backgrounds at full report
+  size (6000×6600): PNG 13–16 MB → sent as JPEG
+- Fixed `Gdip_SaveBitmapToStream` (lib/Gdip_All.ahk): it built the JPEG quality setting but never passed it to
+  GDI+, so the fallback JPEG was always GDI+'s default quality (75) instead of trying 95, 90, 85, then 75
+
+## v1.4.5 – bg1 and bg5 at original quality
+- bg1 and bg5 are now embedded byte-for-byte as supplied too (they had been re-saved smaller), so all 12
+  report backgrounds are the original files
+
+## v1.4.4 – new backgrounds at original quality
+- bg8–bg12 are now embedded byte-for-byte as supplied (v1.4.3 had re-saved them smaller). If a report PNG gets
+  too big for Discord, StatMonitor already falls back to sending it as a JPEG
+
+## v1.4.3 – 5 new report backgrounds
+- Added bg8–bg12 to the hourly report backgrounds (now 12), embedded in StatMonitor.ahk like the others.
+  The big ones are re-saved as JPEG quality 86 (same as bg1/bg5) to keep the script smaller; full size kept
+
+## v1.4.2 – honey label fix
+- Honey reader takes the topmost "Honey" word as the counter's label. It used to take the first match, which
+  could be the "...To Make Honey." hive prompt under the bar: no digits next to it, so the read failed, and the
+  wrong spot was remembered for the 12 s quick reads too (runs of "no reading" while standing at the hive)
+
 ## v1.4.1 – patch number on the report
 - Hourly report shows "Patch v1.4.1" on the line above the timestamp; startup report says "Version: Patch v…"
 - Report footer shows the real Natro version again ("Natro v1.1.2")
