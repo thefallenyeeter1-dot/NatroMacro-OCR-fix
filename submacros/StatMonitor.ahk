@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.4.6"
+version := "1.5.3"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1252,6 +1252,8 @@ DetectHoney()
 	; The area is taller than the counter so a GUI offset a few pixels off (e.g. after the Roblox font change)
 	; can't cut the digits in half, which made the old fixed-box read return things like "4".
 	current_honey := ReadHoneyCounter(windowX, windowY, windowWidth, offsetY)
+	global honey_read_tick
+	readTick := honey_read_tick
 
 	; Checks, so one misread can't skew the graph or the totals, while real big jumps are kept:
 	; - the session's first reading (it becomes the start honey) is only kept if a second read agrees
@@ -1266,7 +1268,7 @@ DetectHoney()
 	; covered (plus a margin for honey still climbing during a convert). Agreeing with them counts as confirmed;
 	; disagreeing gets the reading read again
 	global honey_samples
-	sampleCheck := 0, spread := 0
+	sampleCheck := 0, spread := 0, quickPace := 0
 	if current_honey && (honey_samples.Length >= 3)
 	{
 		vals := []
@@ -1277,9 +1279,28 @@ DetectHoney()
 			vals.RemoveAt(vals.Length), vals.RemoveAt(1)
 		lo := vals[1], hi := vals[vals.Length], spread := hi - lo
 		tol := Max(2000, spread, hi * 0.00002)
-		sampleCheck := ((current_honey >= lo - tol) && (current_honey <= hi + tol)) ? 1 : -1
+		; while converting, honey keeps climbing after the last quick read (up to 12 s ago), often faster than any
+		; fixed margin: allow for it climbing at the pace the quick reads showed (from the lowest to the highest of
+		; them, the very highest and lowest dropped so one bad quick read can't inflate it), x2 since a convert that
+		; started mid-minute climbs faster than that
+		tLo := 0, tHi := 0
+		for smp in honey_samples
+			tLo := (smp[2] = lo && !tLo) ? smp[1] : tLo, tHi := (smp[2] = hi) ? smp[1] : tHi
+		last := honey_samples[honey_samples.Length]
+		quickPace := (tHi > tLo) ? (hi - lo) / Max(1000, tHi - tLo) * 1000 : 0 ; per second
+		up := quickPace * Max(0, A_TickCount - last[1]) / 1000 * 2
+		sampleCheck := ((current_honey >= lo - tol) && (current_honey <= hi + tol + up)) ? 1 : -1
 		try FileAppend FormatTime(, "HH:mm:ss") "  cross-check with " honey_samples.Length " quick reads (" lo "-" hi "): " (sampleCheck = 1 ? "agrees" : "disagrees, rechecking") "`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
 	}
+	; how fast honey has been climbing (per second): this minute's change, the fastest recent minute, the quick
+	; reads' pace. Rechecks allow for honey climbing at up to 5x this between their reads (an OCR read can take
+	; seconds, and during a convert honey can climb by billions per second)
+	pace := 0
+	if current_honey && lastGood
+		pace := Abs(current_honey - lastGood) / Max(1, (readTick - lastGoodTick) / 1000)
+	for r in recentRates
+		pace := Max(pace, r / 60)
+	pace := Max(pace, quickPace)
 	honey_samples := []
 
 	if current_honey && !lastGood
@@ -1288,7 +1309,7 @@ DetectHoney()
 			confirmed := 1
 		else
 		{
-			current_honey := HoneyConfirm(current_honey, current_honey, windowX, windowY, windowWidth, offsetY, Max(2000, current_honey * 0.002, spread))
+			current_honey := HoneyConfirm(current_honey, current_honey, windowX, windowY, windowWidth, offsetY, Max(2000, current_honey * 0.002, spread), readTick, pace)
 			confirmed := (current_honey != 0)
 		}
 	}
@@ -1296,7 +1317,7 @@ DetectHoney()
 		confirmed := 1
 	else if current_honey && (sampleCheck = -1)
 	{
-		current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(2000, spread))
+		current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(2000, spread), readTick, pace)
 		confirmed := (current_honey != 0)
 	}
 	else if current_honey
@@ -1309,7 +1330,7 @@ DetectHoney()
 		change := current_honey - lastGood
 		if (change > Max(maxRate * 3, floorRate) * mins) || (change < -Max(maxRate, floorRate))
 		{
-			current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(maxRate, 2000))
+			current_honey := HoneyConfirm(current_honey, lastGood, windowX, windowY, windowWidth, offsetY, Max(maxRate, 2000), readTick, pace)
 			confirmed := (current_honey != 0)
 		}
 	}
@@ -1326,9 +1347,6 @@ DetectHoney()
 	{
 		if lastGood
 		{
-			global honey_read_source, honey_read_digits
-			if (honey_read_source = "ocr") && !confirmed ; OCR's reading fits the previous one: learn its digits
-				HoneyLearn(honey_read_digits)
 			recentRates.Push(Abs(current_honey - lastGood) / Max(1, (A_TickCount - lastGoodTick) / 60000))
 			if (recentRates.Length > 30)
 				recentRates.RemoveAt(1)
@@ -1336,6 +1354,10 @@ DetectHoney()
 			if (current_honey < lastGood)
 				liveSpent += lastGood - current_honey
 		}
+		; an accepted OCR reading that two OCR reads agreed on exactly: let the digit pictures learn from it
+		global honey_read_source, honey_read_digits, honey_read_strong, honey_read_feats, honey_read_guess
+		if (honey_read_source = "ocr") && honey_read_strong && (honey_read_digits = String(current_honey))
+			HoneyLearn(honey_read_digits, honey_read_feats, honey_read_guess)
 		lastGood := current_honey, pending := 0, lastGoodTick := A_TickCount
 	}
 
@@ -1367,31 +1389,41 @@ DetectHoney()
 *   reads agree on (honey can move a little between reads, e.g. while converting), or 0 to skip this minute.
 *   Every recheck is written to tools\OCR_debug\honey_log.txt
 ********************************************************************************************************/
-HoneyConfirm(first, last, winX, winY, winW, offsetY, tol)
+HoneyConfirm(first, last, winX, winY, winW, offsetY, tol, firstTick := 0, pace := 0)
 {
 	; While converting balloons honey climbs very fast, so two reads under a second apart can differ by more than
 	; the usual tolerance. They still differ by only a few % of the change being checked, while a misread digit
 	; differs from the real value by about the whole change, so allow 5% of the change too
 	tol := Max(tol, Abs(first - last) * 0.05)
-	reads := [first], result := 0
+	; and the time between reads matters: an OCR read can take seconds, and at billions of honey per second the
+	; counter climbs a lot in that time. So a later read may also be higher by up to 5x the recent pace x the time
+	; between the two reads (never lower by more than the tolerance: honey only goes down by spending)
+	global honey_read_tick
+	reads := [[firstTick ? firstTick : A_TickCount, first]], result := 0
 	Loop 2
 	{
 		Sleep 400
 		if (v := ReadHoneyCounter(winX, winY, winW, offsetY))
-			reads.Push(v)
+			reads.Push([honey_read_tick, v])
 		for i, a in reads
 			for j, b in reads
-				if (j > i) && (Abs(a - b) <= tol)
+				if (j > i)
 				{
-					result := Max(a, b)
-					break 3
+					older := (a[1] <= b[1]) ? a : b, newer := (a[1] <= b[1]) ? b : a
+					climb := pace * 5 * Max(0, newer[1] - older[1]) / 1000
+					d := newer[2] - older[2]
+					if (d >= -tol) && (d <= tol + climb)
+					{
+						result := newer[2]
+						break 3
+					}
 				}
 	}
 	try
 	{
 		str := ""
 		for v in reads
-			str .= (A_Index > 1 ? ", " : "") v
+			str .= (A_Index > 1 ? ", " : "") v[2] " (+" Round((v[1] - reads[1][1]) / 1000, 1) "s)"
 		FileOpen(nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt", "a").Write(FormatTime(, "yyyy-MM-dd HH:mm:ss") " recheck (last good " last "): reads " str " -> " (result ? "kept " result : "skipped minute") "`n")
 	}
 	return result
@@ -1462,23 +1494,33 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	; from the very top of the window down to below the counter, so a wrong GUI offset can't push the counter
 	; out of the area (the "Honey" label is found by OCR wherever it is in here)
 	y0 := 0, h := Min(170, Max(90, offsetY + 70))
-	pBM := Gdip_BitmapFromScreen(winX + x0 "|" winY + y0 "|" w "|" h)
+	pBM := Gdip_BitmapFromScreen(winX + x0 "|" winY + y0 "|" w "|" h), capTick := A_TickCount
 
 	; first choice: the counter's digits recognised from pictures of BSS's honey font (exact, no OCR guessing)
-	global honey_read_source := "", honey_read_digits := ""
-	if ((digits := HoneyReadDigits(pBM, w, h)) != "")
+	global honey_read_source := "", honey_read_digits := "", honey_read_strong := 0, honey_read_feats := [], honey_read_guess := []
+	global honey_read_tick := A_TickCount ; when the returned reading was on screen
+	global honey_glyph_feats, honey_glyph_guess, honey_pic_note
+	; (only trusted when a second capture agrees: one capture can catch the counter while something covers part
+	; of it, or a digit mid-redraw; see HoneyPicturesAgree)
+	digits := HoneyReadDigits(pBM, w, h)
+	; what the pictures saw on this screenshot (kept now: the extra captures and the 12 s quick reads replace the globals)
+	snapFeats := honey_glyph_feats, snapGuess := honey_glyph_guess, picNote := honey_pic_note
+	if (digits != "") && ((agreed := HoneyPicturesAgree(digits, capTick, winX + x0, winY + y0, w, h, &capNote)) != "")
 	{
-		honey_read_source := "pictures", honey_read_digits := digits
+		digits := agreed
+		honey_read_source := "pictures", honey_read_digits := digits, honey_read_tick := A_TickCount ; the latest capture
 		Gdip_DisposeImage(pBM)
 		try {
 			logPath := nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
 			DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
 			if (FileExist(logPath) && FileGetSize(logPath) > 50000)
 				FileDelete logPath
-			FileAppend FormatTime(, "HH:mm:ss") "  " digits "  (digit pictures)`n", logPath
+			FileAppend FormatTime(, "HH:mm:ss") "  " digits "  (digit pictures" capNote ")`n", logPath
 		}
 		return ((StrLen(digits) > 19) || (StrLen(digits) = 19 && StrCompare(digits, "9223372036854775807") > 0)) ? Float(digits) : Integer(digits)
 	}
+	if (digits != "") ; the pictures read something, but no second capture agreed: OCR reads this screenshot
+		picNote := "captures disagreed" capNote
 
 	; second copy with the same darkening/contrast the original honey reader used, so white digits stand out
 	pBMc := Gdip_CloneBitmapArea(pBM, 0, 0, w, h)
@@ -1491,7 +1533,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	for threshold in [0.55, 0.7, 0.85]
 		variants.Push([HoneyThreshold(pBM, threshold), "threshold " threshold, [3, 4], [0]])
 
-	reads := [], readLog := ""
+	reads := [], readSrc := [], readLog := ""
 	; most reliable: a tight crop of just the number (found from the "Honey" label and the counter's yellow
 	; digits), cleaned up and read on a white background. The counter bar is see-through, so hive cells and
 	; their level numbers show behind the digits; the yellow filter removes them
@@ -1507,7 +1549,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 					continue
 				v := HoneyNumber(result.Text)
 				if (v != "") && (StrLen(v) >= 4)
-					reads.Push(v), reads.Push(v) ; counts double: these reads are much cleaner than the wide ones
+					reads.Push(v), reads.Push(v), readSrc.Push(tv[1] " x" scale, tv[1] " x" scale) ; counts double: these reads are much cleaner than the wide ones
 				readLog .= tv[1] " x" scale ": " StrReplace(result.Text, "`n", " / ") "  ->  " ((v != "") ? v : "-") "`n"
 			}
 			Gdip_DisposeImage(pPad)
@@ -1526,7 +1568,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 					continue
 				v := HoneyFromOCR(result, w)
 				if (v != "")
-					reads.Push(v)
+					reads.Push(v), readSrc.Push(variant[2] " x" scale (invert ? " inverted" : ""))
 				readLog .= variant[2] " x" scale (invert ? " inverted" : "") ": " StrReplace(result.Text, "`n", " / ") "  ->  " ((v != "") ? v : "-") "`n"
 			}
 		}
@@ -1537,6 +1579,12 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	; long counters (19 digits at 6 Qa) are rarely read identically twice, so if no two reads agree exactly,
 	; build the number digit by digit from the reads of the most common length (needs 3+ such reads)
 	best := HoneyConsensus(reads)
+	; how many different OCR reads gave exactly this number (a number pieced together digit by digit has none)
+	runs := Map()
+	for i, r in reads
+		if (r = best)
+			runs[readSrc[i]] := 1
+	strong := (best != "") && (runs.Count >= 2)
 	if (best = "")
 	{
 		nm_OCR_SaveDebug(pBM, 0, "honey_fail")
@@ -1551,14 +1599,63 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 		DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
 		if (FileExist(logPath) && FileGetSize(logPath) > 50000)
 			FileDelete logPath
-		FileAppend FormatTime(, "HH:mm:ss") "  " ((best != "") ? best : "no reading") "  (" reads.Length " readings)`n", logPath
+		FileAppend FormatTime(, "HH:mm:ss") "  " ((best != "") ? best : "no reading") "  (" reads.Length " readings" ((picNote != "") ? ", pictures: " picNote : "") ")`n", logPath
 	}
 	; integers top out at 9,223,372,036,854,775,807 (~9.2 Qa); only larger values are kept as a float
 	if (best != "")
-		honey_read_source := "ocr", honey_read_digits := best
+		honey_read_source := "ocr", honey_read_digits := best, honey_read_tick := capTick, honey_read_strong := strong, honey_read_feats := snapFeats, honey_read_guess := snapGuess
 	best := (best = "") ? 0 : ((StrLen(best) > 19) || (StrLen(best) = 19 && StrCompare(best, "9223372036854775807") > 0)) ? Float(best) : Integer(best)
 	Gdip_DisposeImage(pBM), Gdip_DisposeImage(pBMc)
 	return best
+}
+
+; A picture reading (digits, captured at tick t0) is only trusted if more captures a moment later back it up.
+; - Counter not moving, or barely (gathering): the next capture must read the same number
+; - Counter climbing (converting): honey and honey/sec can climb very fast, so no fixed allowance fits every
+;   account. Instead 3 captures must keep rising at a steady pace (see HoneySteadyClimb). Real climbing does that;
+;   a misread digit makes one capture jump or fall out of line
+; Up to 2 more captures. Returns the latest backed-up reading, or "" (then OCR reads the counter).
+; note: what happened, for honey_log.txt
+HoneyPicturesAgree(digits, t0, x, y, w, h, &note)
+{
+	note := ""
+	caps := [[t0, HoneyVal(digits), digits]]
+	Loop 2
+	{
+		Sleep 150
+		pBM := Gdip_BitmapFromScreen(x "|" y "|" w "|" h), t := A_TickCount
+		d2 := HoneyReadDigits(pBM, w, h, 1)
+		Gdip_DisposeImage(pBM)
+		if (d2 = "")
+		{
+			note .= ", capture " (A_Index + 1) " unreadable"
+			continue
+		}
+		v := HoneyVal(d2), prev := caps[caps.Length]
+		if (StrLen(d2) = StrLen(prev[3])) && (Abs(v - prev[2]) <= Max(5000, prev[2] * 0.00002))
+			return (v >= prev[2]) ? d2 : prev[3]
+		caps.Push([t, v, d2])
+		if (caps.Length = 3) && HoneySteadyClimb(caps)
+		{
+			note .= ", climbing " FormatNumber(Round((caps[3][2] - caps[1][2]) * 1000 / Max(1, caps[3][1] - caps[1][1]))) "/s over 3 captures"
+			return d2
+		}
+		note .= ", capture " (A_Index + 1) " read " d2
+	}
+	return ""
+}
+HoneyVal(d) => (StrLen(d) > 18) ? Float(d) : Integer(d)
+; 3 captures [tick, value, digits] show honey climbing at a steady pace: each one higher than the last, digit
+; count changing by at most 1, and the climb per second between captures 1-2 and 2-3 within 4x of each other
+HoneySteadyClimb(caps)
+{
+	a := caps[1], b := caps[2], c := caps[3]
+	if !(a[2] < b[2] && b[2] < c[2])
+		return 0
+	if (Abs(StrLen(b[3]) - StrLen(a[3])) > 1) || (Abs(StrLen(c[3]) - StrLen(b[3])) > 1)
+		return 0
+	r1 := (b[2] - a[2]) / Max(1, b[1] - a[1]), r2 := (c[2] - b[2]) / Max(1, c[1] - b[1])
+	return (Max(r1, r2) <= 4 * Min(r1, r2))
 }
 
 ; finds the "Honey" label in the honey read area with OCR; returns its word box or 0
@@ -1671,21 +1768,14 @@ HoneyReadDigits(pBM, w, h, quick := 0)
 			vals := []
 			Loop Parse tpl[2]
 				vals.Push(A_LoopField / 9)
-			parsed.Push([tpl[1], vals])
+			parsed.Push([tpl[1], vals, 0]) ; [digit, shape, learned on this PC]
 		}
 		; digits learned on this PC (see HoneyLearn), so screens that draw the counter differently get better
-		try Loop Read A_WorkingDir "\settings\honey_digits_learned.txt"
-		{
-			if !RegExMatch(A_LoopReadLine, "^(\d)\|(\d{164})$", &m)
-				continue
-			vals := []
-			Loop Parse m[2]
-				vals.Push(A_LoopField / 9)
-			parsed.Push([m[1], vals])
-		}
+		HoneyLearnedLoad(parsed)
 		honey_templates := parsed
 	}
-	honey_glyph_feats := []
+	global honey_glyph_guess, honey_pic_note := ""
+	honey_glyph_feats := [], honey_glyph_guess := []
 	if !(label := HoneyLabel(pBM, quick))
 		return ""
 	rx1 := Min(w - 1, Round(label.x + label.w) + 2), rx2 := w
@@ -1774,22 +1864,26 @@ HoneyReadDigits(pBM, w, h, quick := 0)
 			}
 		}
 		honey_glyph_feats.Push(feat) ; kept so a confirmed reading can teach these digits (HoneyLearn)
-		best := "", bestS := 99
+		; closest shape of every digit; the reading is only trusted if one digit is clearly closer than all others.
+		; Picking the closest shape no matter how near the runner-up was let a digit that looked about as much
+		; like a 0 as a 6 come out as either (the pictures of different digits are as little as 0.38 apart)
+		per := Map()
 		for tpl in parsed
-		{
-			sc := 0, k := 0, vals := tpl[2]
-			for grid in grids
-			{
-				n := grid[1] * grid[2], part := 0
-				Loop n
-					k++, part += Abs(feat[k] - vals[k])
-				sc += part / n
-			}
+			sc := HoneyGlyphDist(feat, tpl[2]), per[tpl[1]] := per.Has(tpl[1]) ? Min(per[tpl[1]], sc) : sc
+		best := "", bestS := 99, second := 99, secondD := ""
+		for d, sc in per
 			if (sc < bestS)
-				bestS := sc, best := tpl[1]
-		}
-		if (bestS > 1.0) ; nothing like any known digit: keep going so all digits' shapes are collected
+				second := bestS, secondD := best, bestS := sc, best := d
+			else if (sc < second)
+				second := sc, secondD := d
+		unsure := (second - bestS < 0.08)
+		honey_glyph_guess.Push([best, bestS, unsure])
+		if (bestS > 1.0) || unsure ; keep going so all digits' shapes are collected
+		{
 			failed := 1
+			if (honey_pic_note = "")
+				honey_pic_note := unsure ? "digit " honey_glyph_feats.Length " unsure " best "/" secondD : "digit " honey_glyph_feats.Length " unknown"
+		}
 		out .= best
 	}
 	if failed
@@ -1797,42 +1891,169 @@ HoneyReadDigits(pBM, w, h, quick := 0)
 	return RegExMatch(out, "^\d{1,3}(,\d{3})+$") ? StrReplace(out, ",") : ""
 }
 
-; Teaches the honey digit reader the digits of a confirmed reading (one OCR agreed on and that fits the
-; previous readings) using the shapes HoneyReadDigits collected on this screen. Saved in
-; settings\honey_digits_learned.txt, so a PC whose counter looks different reads it from pictures over time.
-HoneyLearn(digits)
+; ---------------------------------------------------------------------------------------------------
+;  SELF-LEARNING HONEY DIGITS (same idea as the buff stack learning)
+;  When the digit pictures can't read the counter, OCR reads it. A digit's shape is only collected when
+;  - the OCR reading was accepted as the honey value (fits the previous readings, or was confirmed by a recheck),
+;  - at least two different OCR reads of the same screenshot gave exactly that number (not pieced together),
+;  - every digit the pictures WERE sure about says the same as OCR (two independent methods agree).
+;  A collected shape is only trusted after 3 alike confirmations from 3 separate readings, then saved to
+;  settings\honey_digits_learned.txt. A shape that looks like a different digit's picture is never saved, and a
+;  saved shape that turns out to look like another digit's confirmed shape is thrown away with it.
+;  Log: tools\OCR_debug\honey_learn_log.txt
+; ---------------------------------------------------------------------------------------------------
+; how different two digit shapes are (average difference on each of the 3 grids, added up: 0 = identical)
+HoneyGlyphDist(a, b)
 {
-	global honey_templates, honey_glyph_feats
-	if !IsSet(honey_glyph_feats) || !IsSet(honey_templates) || (honey_glyph_feats.Length != StrLen(digits))
-		return
-	path := A_WorkingDir "\settings\honey_digits_learned.txt"
-	count := 0
-	try Loop Read path
-		count++
-	if (count >= 300)
-		return
-	for i, feat in honey_glyph_feats
+	static grids := [54, 40, 70]
+	sc := 0, k := 0
+	for n in grids
 	{
-		ch := SubStr(digits, i, 1), best := 99
-		for tpl in honey_templates ; skip shapes already known well
-			if (tpl[1] = ch)
-			{
-				sc := 0
-				Loop feat.Length
-					sc += Abs(feat[A_Index] - tpl[2][A_Index])
-				best := Min(best, sc / feat.Length * 3)
-			}
-		if (best < 0.25)
+		part := 0
+		Loop n
+			k++, part += Abs(a[k] - b[k])
+		sc += part / n
+	}
+	return sc
+}
+HoneyLearnLog(msg)
+{
+	try {
+		path := nm_OCR_RootDir() "\tools\OCR_debug\honey_learn_log.txt"
+		DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
+		if (FileExist(path) && FileGetSize(path) > 50000)
+			FileDelete path
+		FileAppend FormatTime(, "yyyy-MM-dd HH:mm:ss") "  " msg "`n", path
+	}
+}
+; rewrites settings\honey_digits_learned.txt from the learned shapes in `templates`
+HoneyLearnSave(templates)
+{
+	out := ""
+	for tpl in templates
+		if tpl[3]
+		{
+			out .= tpl[1] "|"
+			for v in tpl[2]
+				out .= Round(v * 9)
+			out .= "`n"
+		}
+	try {
+		DirCreate A_WorkingDir "\settings"
+		FileOpen(A_WorkingDir "\settings\honey_digits_learned.txt", "w").Write(out)
+	}
+}
+; adds the saved learned shapes to `parsed` (the built-in shapes). Shapes saved before v1.5.0 only needed one
+; reading, so one that looks like a different digit (built-in or another saved shape) is removed
+HoneyLearnedLoad(parsed)
+{
+	saved := []
+	try Loop Read A_WorkingDir "\settings\honey_digits_learned.txt"
+	{
+		if !RegExMatch(A_LoopReadLine, "^(\d)\|(\d{164})$", &m)
 			continue
-		str := "", vals := []
-		for v in feat
-			q := Round(v * 9), str .= q, vals.Push(q / 9)
-		try {
-			DirCreate A_WorkingDir "\settings"
-			FileAppend ch "|" str "`n", path
-			honey_templates.Push([ch, vals])
+		vals := []
+		Loop Parse m[2]
+			vals.Push(A_LoopField / 9)
+		saved.Push([m[1], vals, 1])
+	}
+	bad := Map()
+	for i, a in saved
+	{
+		for tpl in parsed
+			if (tpl[1] != a[1]) && (HoneyGlyphDist(a[2], tpl[2]) < 0.25)
+			{
+				bad[i] := 1
+				break
+			}
+		for j, c in saved
+			if (j > i) && (c[1] != a[1]) && (HoneyGlyphDist(a[2], c[2]) < 0.25)
+				bad[i] := 1, bad[j] := 1
+	}
+	for i, a in saved
+		if !bad.Has(i)
+			parsed.Push(a)
+	if bad.Count
+	{
+		HoneyLearnSave(parsed)
+		HoneyLearnLog("removed " bad.Count " saved digit shape(s) that look like a different digit")
+	}
+}
+; collects the shapes of an accepted OCR reading (feats/guess: what HoneyReadDigits saw on that screenshot)
+HoneyLearn(digits, feats, guess)
+{
+	global honey_templates
+	static pending := Map() ; digit -> [[shape, confirmations], ...]
+	if !IsSet(honey_templates) || !IsObject(feats) || !IsObject(guess) || (feats.Length != StrLen(digits)) || (guess.Length != feats.Length)
+		return
+	; the digit pictures and OCR are independent: every digit the pictures were sure about must agree
+	for i, g in guess
+		if !g[3] && (g[2] <= 0.5) && (g[1] != SubStr(digits, i, 1))
+			return HoneyLearnLog("not learning " digits ": digit " i " is a " g[1] " to the pictures, OCR read " SubStr(digits, i, 1))
+	seen := Map()
+	for i, feat in feats
+	{
+		ch := SubStr(digits, i, 1)
+		if seen.Has(ch) ; one shape per digit per reading, so 3 confirmations = 3 separate readings
+			continue
+		best := 99
+		for tpl in honey_templates
+			if (tpl[1] = ch)
+				best := Min(best, HoneyGlyphDist(feat, tpl[2]))
+		if (best < 0.25) ; already known well
+			continue
+		seen[ch] := 1
+		if !pending.Has(ch)
+			pending[ch] := []
+		matched := 0
+		for j, c in pending[ch]
+			if (HoneyGlyphDist(c[1], feat) < 0.3)
+			{
+				matched := 1, c[2] += 1
+				if (c[2] >= 3)
+					pending[ch].RemoveAt(j), HoneyLearnPromote(ch, c[1])
+				break
+			}
+		if !matched
+		{
+			if (pending[ch].Length >= 6) ; keep only the newest shapes while none has 3 confirmations
+				pending[ch].RemoveAt(1)
+			pending[ch].Push([feat, 1])
 		}
 	}
+}
+; a shape confirmed 3 times becomes a trusted picture, unless it looks like a different digit's picture
+HoneyLearnPromote(ch, feat)
+{
+	global honey_templates
+	learned := 0, wrong := []
+	for idx, tpl in honey_templates
+	{
+		learned += tpl[3]
+		if (tpl[1] = ch) || (HoneyGlyphDist(feat, tpl[2]) >= 0.25)
+			continue
+		if !tpl[3]
+			return HoneyLearnLog("digit " ch " confirmed 3 times but looks like the built-in " tpl[1] ": not saved")
+		wrong.Push(idx)
+	}
+	if wrong.Length ; the same look was confirmed as two different digits: trust neither
+	{
+		Loop wrong.Length
+			honey_templates.RemoveAt(wrong[wrong.Length - A_Index + 1])
+		HoneyLearnSave(honey_templates)
+		return HoneyLearnLog("digit " ch " confirmed 3 times but looks like " wrong.Length " saved shape(s) of another digit: all thrown away")
+	}
+	if (learned >= 300)
+		return HoneyLearnLog("digit " ch " confirmed 3 times, but 300 shapes are saved already")
+	str := "", vals := []
+	for v in feat
+		q := Round(v * 9), str .= q, vals.Push(q / 9)
+	try {
+		DirCreate A_WorkingDir "\settings"
+		FileAppend ch "|" str "`n", A_WorkingDir "\settings\honey_digits_learned.txt"
+	}
+	honey_templates.Push([ch, vals, 1])
+	HoneyLearnLog("learned digit " ch " (confirmed 3 times)")
 }
 
 ; Crops pBM (the honey read area) down to just the counter's digits: finds the "Honey" label with OCR, then
