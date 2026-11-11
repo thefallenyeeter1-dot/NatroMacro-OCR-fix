@@ -672,12 +672,33 @@ nm_OCR_HasteDigits() {
 
 ; Haste stack number from the digit pictures inside x1,y1-x2,y2 of pBM, or "" if none matches
 nm_OCR_HasteDigit(pBM, x1, y1, x2, y2) {
+	return nm_OCR_UniqueDigit(pBM, nm_OCR_HasteDigits(), x1 - 8, y1 - 6, x2 + 10, y2 + 4)
+}
+; The one digit whose picture matches inside the area, or "". It used to return the first picture that matched,
+; checking 2 first and 9 last, so when two pictures matched at the loose tolerance (an 8 also passes as a 3 or
+; a 6 when a few pixels are off) the smaller number won. Now every picture is checked; if several match, they
+; are checked again stricter and stricter until only one is left. If none can be told apart, "" (OCR decides)
+nm_OCR_UniqueDigit(pBM, pics, x1, y1, x2, y2) {
 	static fn := "Gdip_ImageSearch"
 	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
-	for d, pDigit in nm_OCR_HasteDigits()
-		try if (%fn%(pBM, pDigit, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 10), Min(h, y2 + 4), 60, 0xFF00FF) = 1)
-			return d
-	return ""
+	x1 := Max(0, x1), y1 := Max(0, y1), x2 := Min(w, x2), y2 := Min(h, y2)
+	cands := []
+	for d, pDigit in pics
+		try if (%fn%(pBM, pDigit, , x1, y1, x2, y2, 60, 0xFF00FF) = 1)
+			cands.Push([d, pDigit])
+	for variation in [45, 30, 18, 8]
+	{
+		if (cands.Length <= 1)
+			break
+		left := []
+		for c in cands
+			try if (%fn%(pBM, c[2], , x1, y1, x2, y2, variation, 0xFF00FF) = 1)
+				left.Push(c)
+		if !left.Length ; all dropped out together: can't tell them apart
+			return ""
+		cands := left
+	}
+	return (cands.Length = 1) ? cands[1][1] : ""
 }
 
 ; Focus stack digits 2-9 in BSS's current buff font, cut from real captures of the Focus icon (each includes
@@ -698,11 +719,7 @@ nm_OCR_BuffDigit(pBM, x1, y1, x2, y2) {
 	static fn := "Gdip_ImageSearch"
 	if ((d := nm_OCR_HasteDigit(pBM, x1, y1, x2, y2)) != "")
 		return d
-	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
-	for d, pDigit in nm_OCR_FocusDigits()
-		try if (%fn%(pBM, pDigit, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 12), Min(h, y2 + 4), 60, 0xFF00FF) = 1)
-			return d
-	return ""
+	return nm_OCR_UniqueDigit(pBM, nm_OCR_FocusDigits(), x1 - 8, y1 - 6, x2 + 12, y2 + 4)
 }
 
 ; Reads one quest objective bar (pBM) with OCR and returns which of the keys (e.g. "pinetree", "redpollen")
