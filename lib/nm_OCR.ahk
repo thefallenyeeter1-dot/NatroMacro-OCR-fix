@@ -566,6 +566,20 @@ nm_OCRFindPhrase(pBM, phrases, allowed := 2, scale := 2) {
 	return 0
 }
 
+; 1 if any of the phrases (lowercase letters only, e.g. "blessing") is in the rectangle x,y,w,h of pBM
+; (w/h 0 = to the edge). Only that part is read, so it's quicker and other text can't match
+nm_OCRFindPhraseIn(pBM, phrases, x, y, w, h, allowed := 1, scale := 2) {
+	bw := Gdip_GetImageWidth(pBM), bh := Gdip_GetImageHeight(pBM)
+	x := Max(0, Round(x)), y := Max(0, Round(y))
+	w := Min(w ? Round(w) : bw, bw - x), h := Min(h ? Round(h) : bh, bh - y)
+	if (w < 4 || h < 4)
+		return 0
+	pPart := Gdip_CloneBitmapArea(pBM, x, y, w, h)
+	r := nm_OCRFindPhrase(pPart, phrases, allowed, scale)
+	Gdip_DisposeImage(pPart)
+	return r
+}
+
 ; "Make Honey" hive prompt in the top-middle area of pBM (only the first 400x120 px are read)
 nm_OCRMakeHoney(pBM) {
 	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
