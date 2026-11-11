@@ -100,6 +100,9 @@ nm_deathCheck(){
 			result := ImageSearch(&FoundX, &FoundY, windowX+windowWidth//2, windowY+windowHeight//2, windowX+windowWidth, windowY+windowHeight, "*50 nm_image_assets\died.png")
 		catch
 			return
+		; the picture is old-font text: also read the notification with OCR (see nm_NoticeOCR)
+		if (result != 1) && nm_NoticeOCR(["died"], 0, "death")
+			result := 1
 		if (result = 1) {
 			if WinExist("natro_macro ahk_class AutoHotkey") {
 				PostMessage 0x5555, 1, 1
@@ -396,6 +399,14 @@ nm_guidingStarDetect(){
 	}
 
 	if(GSfound){
+		; the field name is text: read it with OCR first (the pictures are old-font text), pictures as fallback
+		if ((value := nm_GuidingStarFieldOCR(fieldnames)) != "") {
+			if WinExist("natro_macro ahk_class AutoHotkey") {
+				Send_WM_COPYDATA(value, "natro_macro ahk_class AutoHotkey", 1)
+				LastGuidDetected := nowUnix()
+			}
+			return
+		}
 		for value in fieldnames {
 			try
 				result := ImageSearch(&FoundX, &FoundY, xi, yi, ww, wh, "*50 nm_image_assets\guiding_star_" value ".png")
@@ -410,6 +421,56 @@ nm_guidingStarDetect(){
 			}
 		}
 	}
+}
+
+; BSS's notifications (bottom right of the window) are white text on this blue (34,87,168). The "died!" and
+; "Guiding Star on the ..." pictures are old-font text, so these read the notification with OCR instead.
+; nm_NoticeOCR: 1 if a notification shows any of the phrases. OCR only runs if that blue is on screen, and at most
+; every 2 s per kind, so it costs nothing while no notification is up
+nm_NoticeOCR(phrases, allowed, kind) {
+	static last := Map()
+	if (windowWidth < 100) || (last.Has(kind) && A_TickCount - last[kind] < 2000)
+		return 0
+	x1 := windowX + windowWidth//2, y1 := windowY + windowHeight//2
+	try {
+		if !PixelSearch(&px, &py, x1, y1, windowX + windowWidth - 1, windowY + windowHeight - 1, 0x2257A8, 12)
+			return 0
+	} catch
+		return 0
+	last[kind] := A_TickCount
+	pBM := Gdip_BitmapFromScreen(x1 "|" y1 "|" windowWidth - windowWidth//2 "|" windowHeight - windowHeight//2)
+	r := nm_OCRFindPhrase(pBM, phrases, allowed, 2)
+	Gdip_DisposeImage(pBM)
+	return r
+}
+; the field named in a "Guiding Star on the <field>" notification, or "" (fieldnames: Natro's names, e.g. "PineTree")
+nm_GuidingStarFieldOCR(fieldnames) {
+	x1 := windowX + windowWidth//2, y1 := windowY + windowHeight//2
+	pBM := Gdip_BitmapFromScreen(x1 "|" y1 "|" windowWidth - windowWidth//2 "|" windowHeight - windowHeight//2)
+	found := ""
+	for invert in [0, 1] {
+		if !(result := nm_OCR_FromBitmap(pBM, 2, invert))
+			break
+		for line in result.Lines {
+			text := ""
+			for word in line.Words
+				text .= word.Text
+			text := nm_OCR_Norm(text)
+			if (nm_OCR_PhraseDistance("guidingstar", text) > 2)
+				continue
+			text := SubStr(text, InStr(text, "the") ? InStr(text, "the") + 3 : 1) ; the part after "...on the"
+			best := 99
+			for name in fieldnames {
+				n := StrLower(name), d := nm_OCR_PhraseDistance(n, text)
+				if (d <= nm_OCR_Allowed(StrLen(n))) && ((d < best) || (d = best && StrLen(name) > StrLen(found)))
+					best := d, found := name
+			}
+			if (found != "")
+				break 2
+		}
+	}
+	Gdip_DisposeImage(pBM)
+	return found
 }
 
 nm_dailyReconnect(){

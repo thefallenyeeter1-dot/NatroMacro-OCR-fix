@@ -14832,7 +14832,7 @@ nm_AmuletPrompt(decision:=0, type:=0, *){
 
 	pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY "|500|" windowHeight)
 
-	if (Gdip_ImageSearch(pBMScreen, bitmaps["keep"], &pos, , , , , 2, , 2) = 1)
+	if (nm_KeepButtonSeen(pBMScreen, &pos))
 	{
 		switch decision, 0
 		{
@@ -14844,7 +14844,7 @@ nm_AmuletPrompt(decision:=0, type:=0, *){
 			{
 				MouseMove windowX+350, windowY+offsetY+100
 				pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-250 "|" windowY "|500|" windowHeight)
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["keep"], &pos, , , , , 2, , 2) = 1)
+				if (nm_KeepButtonSeen(pBMScreen, &pos))
 				{
 					MouseMove windowX+windowWidth//2-250+SubStr(pos, 1, InStr(pos, ",")-1)+10, windowY+SubStr(pos, InStr(pos, ",")+1)+10, 5
 					Sleep 200
@@ -21486,7 +21486,7 @@ nm_convert(ignoreActiveConvertState := 0, forceBalloonConvert := 0){
 				SendInput "{" SC_E " up}"
 			}
 			if ((Gdip_ImageSearch(pBMScreen, bitmaps["e_button"], , , , 400, 120, 2, , 6) = 0)
-				|| ((Gdip_ImageSearch(pBMScreen, bitmaps["hiveballoon"], , windowWidth//2, windowHeight-offsetY-36-400, , , 40, , 3) = 1) && (ballooncomplete:=1))) {
+				|| (nm_BalloonBlessingSeen(pBMScreen) && (ballooncomplete:=1))) {
 				Gdip_DisposeImage(pBMScreen)
 				nm_ConvertTrace("Backpack: screen/image caused break", loopTick)
 				break
@@ -21507,7 +21507,7 @@ nm_convert(ignoreActiveConvertState := 0, forceBalloonConvert := 0){
 			nm_ConvertTrace("Balloon: refresh scan start", loopTick)
 			GetRobloxClientPos(hwnd)
 			pBMScreen := Gdip_BitmapFromScreen(windowX+windowWidth//2-200 "|" windowY+offsetY+36 "|" windowWidth//2+200 "|" windowHeight-offsetY-36)
-			if ((ballooncomplete = 1) || (Gdip_ImageSearch(pBMScreen, bitmaps["hiveballoon"], , windowWidth//2, windowHeight-offsetY-36-400, , , 40, , 3) = 1)) {
+			if ((ballooncomplete = 1) || nm_BalloonBlessingSeen(pBMScreen)) {
 				Gdip_DisposeImage(pBMScreen)
 				nm_setStatus("Converting", "Balloon Refreshed")
 				IniWrite LastConvertBalloon:=nowUnix(), "settings\nm_config.ini", "Settings", "LastConvertBalloon"
@@ -21596,7 +21596,7 @@ nm_convert(ignoreActiveConvertState := 0, forceBalloonConvert := 0){
 				}
 				nm_ConvertTrace("Balloon: makehoney check", loopTick)
 				if ((Gdip_ImageSearch(pBMScreen, bitmaps["e_button"], , , , 400, 120, 2, , 6) = 0)
-					|| (Gdip_ImageSearch(pBMScreen, bitmaps["hiveballoon"], , windowWidth//2, windowHeight-offsetY-36-400, , , 40, , 3) = 1)) {
+					|| nm_BalloonBlessingSeen(pBMScreen)) {
 					Gdip_DisposeImage(pBMScreen)
 					ballooncomplete:=1
 					nm_ConvertTrace("Balloon: complete detected", loopTick)
@@ -22323,6 +22323,29 @@ ShellRun(prms*)
 	; IShellDispatch2.ShellExecute
 	shell.ShellExecute(prms*)
 }
+; ---- text prompts read with OCR as well as the old pictures (those are old-font text) ----
+; "Blessing!" notification when the balloon is converted (bottom right). OCR at most every 1.5 s
+; (pBMScreen runs from 200 px left of the window centre to the right edge, and from below the top bar to the
+; bottom, so the notification area is its right 200 px and bottom 400 px)
+nm_BalloonBlessingSeen(pBMScreen) {
+	static lastOCR := 0
+	x1 := Gdip_GetImageWidth(pBMScreen) - 200, y1 := Gdip_GetImageHeight(pBMScreen) - 400
+	if (Gdip_ImageSearch(pBMScreen, bitmaps["hiveballoon"], , x1, y1, , , 40, , 3) = 1)
+		return 1
+	if (A_TickCount - lastOCR < 1500)
+		return 0
+	lastOCR := A_TickCount
+	return nm_OCRFindPhraseIn(pBMScreen, ["blessing"], x1, y1, 0, 0, 1)
+}
+; "Keep" button of the amulet prompt; pos = "x,y" of the button in pBMScreen
+nm_KeepButtonSeen(pBMScreen, &pos) {
+	if (Gdip_ImageSearch(pBMScreen, bitmaps["keep"], &pos, , , , , 2, , 2) = 1)
+		return 1
+	return nm_OCRFindWord(pBMScreen, "Keep", &pos)
+}
+; "Claim Hive" prompt (pBMScreen = the 400x125 prompt area at the top)
+nm_ClaimHiveSeen(pBMScreen) => (Gdip_ImageSearch(pBMScreen, bitmaps["claimhive"], , , , , , 2, , 6) = 1) || nm_OCRFindPhrase(pBMScreen, ["claimhive", "claimthishive"], 1)
+
 nm_claimHiveSlot(){
 	global KeyDelay, FwdKey, RightKey, LeftKey, BackKey, ZoomOut, HiveSlot, HiveConfirmed, SC_E, SC_Esc, SC_R, SC_Enter, bitmaps
 	GetBitmap() {
@@ -22402,7 +22425,7 @@ nm_claimHiveSlot(){
 				nm_endWalk()
 				sleep 500
 				pBMScreen := GetBitmap()
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["claimhive"], , , , , , 2, , 6) = 1) {
+				if (nm_ClaimHiveSeen(pBMScreen)) {
 					Gdip_DisposeImage(pBMScreen)
 					Send "{" SC_E " down}"
 					sleep 100
@@ -22457,7 +22480,7 @@ nm_claimHiveSlot(){
 
 			Sleep 500
 			pBMScreen := GetBitmap()
-			if (Gdip_ImageSearch(pBMScreen, bitmaps["claimhive"], , , , , , 2, , 6) = 1)
+			if (nm_ClaimHiveSeen(pBMScreen))
 				slots[A_Index] := 1
 			Gdip_DisposeImage(pBMScreen)
 		}
@@ -22476,7 +22499,7 @@ nm_claimHiveSlot(){
 
 				Sleep 500
 				pBMScreen := GetBitmap()
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["claimhive"], , , , , , 2, , 6) = 1) {
+				if (nm_ClaimHiveSeen(pBMScreen)) {
 					Gdip_DisposeImage(pBMScreen)
 					HiveSlot := slot
 					break
@@ -22493,7 +22516,7 @@ nm_claimHiveSlot(){
 
 					Sleep 500
 					pBMScreen := GetBitmap()
-					if (Gdip_ImageSearch(pBMScreen, bitmaps["claimhive"], , , , , , 2, , 6) = 1) {
+					if (nm_ClaimHiveSeen(pBMScreen)) {
 						Gdip_DisposeImage(pBMScreen)
 						HiveSlot += A_Index
 						break 2
@@ -23072,6 +23095,10 @@ nm_hotbar(boost:=0){
 						;detect current snowflake buff amount
 						x := SubStr(pos, 1, InStr(pos, ",")-1)
 
+						; read with OCR first: the digit pictures below are old-font text, and after a font change
+						; they could match the wrong digits. The pictures are only used if OCR reads nothing
+						if ((num := nm_OCRReadStack(pBMArea, x-32, 15, x-8, 50, 100)) = "")
+						{
 						(digits := Map()).Default := ""
 						Loop 10
 						{
@@ -23099,6 +23126,7 @@ nm_hotbar(boost:=0){
 						num := ""
 						for m,n in digits
 							num .= n
+						}
 					}
 					else
 						num := 0

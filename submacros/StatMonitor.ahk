@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.5.3"
+version := "1.6.1"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1505,21 +1505,19 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	digits := HoneyReadDigits(pBM, w, h)
 	; what the pictures saw on this screenshot (kept now: the extra captures and the 12 s quick reads replace the globals)
 	snapFeats := honey_glyph_feats, snapGuess := honey_glyph_guess, picNote := honey_pic_note
+	auditPic := ""
 	if (digits != "") && ((agreed := HoneyPicturesAgree(digits, capTick, winX + x0, winY + y0, w, h, &capNote)) != "")
 	{
-		digits := agreed
-		honey_read_source := "pictures", honey_read_digits := digits, honey_read_tick := A_TickCount ; the latest capture
-		Gdip_DisposeImage(pBM)
-		try {
-			logPath := nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
-			DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
-			if (FileExist(logPath) && FileGetSize(logPath) > 50000)
-				FileDelete logPath
-			FileAppend FormatTime(, "HH:mm:ss") "  " digits "  (digit pictures" capNote ")`n", logPath
+		; every 10 minutes OCR checks the pictures on the same screenshot (see HoneyAudit): pictures that read a
+		; new font's digit as a different old digit would otherwise agree with themselves forever
+		if !HoneyAuditDue()
+		{
+			Gdip_DisposeImage(pBM)
+			return HoneyPicturesResult(agreed, capNote)
 		}
-		return ((StrLen(digits) > 19) || (StrLen(digits) = 19 && StrCompare(digits, "9223372036854775807") > 0)) ? Float(digits) : Integer(digits)
+		auditPic := digits, auditAgreed := agreed, auditNote := capNote
 	}
-	if (digits != "") ; the pictures read something, but no second capture agreed: OCR reads this screenshot
+	else if (digits != "") ; the pictures read something, but no second capture agreed: OCR reads this screenshot
 		picNote := "captures disagreed" capNote
 
 	; second copy with the same darkening/contrast the original honey reader used, so white digits stand out
@@ -1585,6 +1583,17 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 		if (r = best)
 			runs[readSrc[i]] := 1
 	strong := (best != "") && (runs.Count >= 2)
+	if (auditPic != "")
+	{
+		Gdip_DisposeImage(pBM), Gdip_DisposeImage(pBMc)
+		verdict := HoneyAudit(auditPic, best, strong)
+		if (verdict != "disagrees")
+			return HoneyPicturesResult(auditAgreed, auditNote ", OCR check " verdict)
+		; two OCR reads agree on a different number than the pictures: this minute uses OCR's
+		honey_read_source := "ocr", honey_read_digits := best, honey_read_tick := capTick, honey_read_strong := strong, honey_read_feats := snapFeats, honey_read_guess := snapGuess
+		try FileAppend FormatTime(, "HH:mm:ss") "  " best "  (OCR check: pictures read " auditPic ", OCR disagrees)`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+		return HoneyVal(best)
+	}
 	if (best = "")
 	{
 		nm_OCR_SaveDebug(pBM, 0, "honey_fail")
@@ -1607,6 +1616,92 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	best := (best = "") ? 0 : ((StrLen(best) > 19) || (StrLen(best) = 19 && StrCompare(best, "9223372036854775807") > 0)) ? Float(best) : Integer(best)
 	Gdip_DisposeImage(pBM), Gdip_DisposeImage(pBMc)
 	return best
+}
+
+; the accepted picture reading `digits`: sets the honey_read_* globals, logs it, returns the number
+HoneyPicturesResult(digits, note)
+{
+	global honey_read_source := "pictures", honey_read_digits := digits, honey_read_tick := A_TickCount ; the latest capture
+	try {
+		logPath := nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+		DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
+		if (FileExist(logPath) && FileGetSize(logPath) > 50000)
+			FileDelete logPath
+		FileAppend FormatTime(, "HH:mm:ss") "  " digits "  (digit pictures" note ")`n", logPath
+	}
+	return ((StrLen(digits) > 19) || (StrLen(digits) = 19 && StrCompare(digits, "9223372036854775807") > 0)) ? Float(digits) : Integer(digits)
+}
+
+; ---------------------------------------------------------------------------------------------------
+;  OCR CHECK OF THE DIGIT PICTURES (font change safety)
+;  If Roblox changes the font so that a new digit looks like a DIFFERENT old digit, the pictures would read it
+;  wrong every time, and their extra captures and the quick reads (pictures too) would all agree, so nothing
+;  would catch it. So every 10 minutes the minute reading is also read with OCR, on the same screenshot:
+;  - only counts when two different OCR reads give exactly the same number
+;  - agrees: nothing happens; disagrees: that minute uses OCR's number, and the next check is a minute later
+;  - 3 disagreements in a row: the built-in digit pictures are switched off (saved in settings\honey_font.ini,
+;    so it stays off after restarting) and the counter is relearned from OCR like on a new PC. If it keeps
+;    disagreeing with only learned shapes left, those are set aside too (honey_digits_learned.txt.old)
+;  Log: tools\OCR_debug\honey_learn_log.txt. Delete settings\honey_font.ini to switch the built-in pictures back on
+; ---------------------------------------------------------------------------------------------------
+HoneyAuditDue()
+{
+	global honey_audit_fails
+	static last := 0
+	if !IsSet(honey_audit_fails)
+		honey_audit_fails := 0
+	if last && (A_TickCount - last < (honey_audit_fails ? 50000 : 600000))
+		return 0
+	last := A_TickCount
+	return 1
+}
+; "agrees", "unclear" (OCR didn't give one number twice) or "disagrees"
+HoneyAudit(pic, best, strong)
+{
+	global honey_audit_fails
+	if !strong || (best = "")
+		return "unclear"
+	if (best = pic)
+	{
+		if honey_audit_fails
+			HoneyLearnLog("OCR check agrees with the pictures again (" pic ")")
+		honey_audit_fails := 0
+		return "agrees"
+	}
+	honey_audit_fails++
+	HoneyLearnLog("OCR check: pictures read " pic ", two OCR reads gave " best " (" honey_audit_fails "/3)")
+	if (honey_audit_fails >= 3)
+		honey_audit_fails := 0, HoneyFontChanged()
+	return "disagrees"
+}
+; 3 OCR checks in a row disagreed with the pictures: stop trusting them and relearn
+HoneyFontChanged()
+{
+	global honey_templates
+	if !IsSet(honey_templates)
+		return
+	path := A_WorkingDir "\settings\honey_font.ini"
+	if (IniRead(path, "Digits", "BuiltIn", 1) != 0)
+	{
+		try {
+			DirCreate A_WorkingDir "\settings"
+			IniWrite 0, path, "Digits", "BuiltIn"
+		}
+		n := honey_templates.Length ; in place, from the end: HoneyReadDigits uses this same list
+		Loop n
+			if !honey_templates[i := n - A_Index + 1][3]
+				honey_templates.RemoveAt(i)
+		HoneyLearnLog("built-in digit pictures switched off (font change?): relearning the counter from OCR")
+	}
+	else
+	{
+		n := honey_templates.Length
+		Loop n
+			if honey_templates[i := n - A_Index + 1][3]
+				honey_templates.RemoveAt(i)
+		try FileMove A_WorkingDir "\settings\honey_digits_learned.txt", A_WorkingDir "\settings\honey_digits_learned.txt.old", 1
+		HoneyLearnLog("learned digit shapes disagree with OCR too: set aside (honey_digits_learned.txt.old), relearning from OCR")
+	}
 }
 
 ; A picture reading (digits, captured at tick t0) is only trusted if more captures a moment later back it up.
@@ -1770,6 +1865,9 @@ HoneyReadDigits(pBM, w, h, quick := 0)
 				vals.Push(A_LoopField / 9)
 			parsed.Push([tpl[1], vals, 0]) ; [digit, shape, learned on this PC]
 		}
+		; switched off after OCR checks kept disagreeing with them (see HoneyFontChanged): only learned shapes
+		if (IniRead(A_WorkingDir "\settings\honey_font.ini", "Digits", "BuiltIn", 1) = 0)
+			parsed := []
 		; digits learned on this PC (see HoneyLearn), so screens that draw the counter differently get better
 		HoneyLearnedLoad(parsed)
 		honey_templates := parsed
