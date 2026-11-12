@@ -118,9 +118,18 @@ class QuestReader {
             for dy in [5, 20, 34]
                 samples.Push(Gdip_GetPixel(this.bitmap, QuestBarInset + 6, rowGap.y + QuestBarGapSize + dy) & 0xFFFFFF)
             state := this.Classify(samples)
-            if state = "unreadable"
-                return this.Fail(title ": objective " objective[1] " (" objective[2] " " objective[3] ") bar colour unknown: "
-                    . Format("{:06X} {:06X} {:06X}", samples*))
+            if state = "unreadable" {
+                ; the quest panel is see-through, so in a field the bar's exact shade shifts with whatever is
+                ; behind it (seen: 69D465 to 95EB7A for one bar). Then go by colour type instead, and look at the
+                ; right end of the bar too: a finished bar is green all the way, an unfinished one is still red there
+                right := []
+                for dy in [5, 20, 34]
+                    right.Push(Gdip_GetPixel(this.bitmap, QuestBarInset + 262, rowGap.y + QuestBarGapSize + dy) & 0xFFFFFF) ; bars end ~271 px in
+                state := this.ClassifyByHue(samples, right)
+                if state = "unreadable"
+                    return this.Fail(title ": objective " objective[1] " (" objective[2] " " objective[3] ") bar colour unknown: left "
+                        . Format("{:06X} {:06X} {:06X}", samples*) ", right " Format("{:06X} {:06X} {:06X}", right*))
+            }
             rows.Push(state)
             incomplete := incomplete || state = "incomplete"
         }
@@ -181,7 +190,7 @@ class QuestReader {
         for color in samples {
             if this.Near(color, 0xF46C55, 8) || this.Near(color, 0x6EFF60, 8)
                 incomplete += 1
-            else if this.Near(color, 0x8BF48B, 12)
+            else if this.Near(color, 0x8BF48B, 12) || this.Near(color, 0x6FD18C, 12) ; 6FD18C: current complete colour
                 complete += 1
         }
         if incomplete >= 2 && !complete
@@ -192,6 +201,36 @@ class QuestReader {
     }
 
     Classify(samples) => QuestReader.Classify(samples)
+
+    ; "green", "red" or "" for one pixel, by which colour clearly dominates (works through the see-through panel)
+    static Hue(color) {
+        r := (color >> 16) & 255, g := (color >> 8) & 255, b := color & 255
+        if (g >= r + 30) && (g >= b + 30)
+            return "green"
+        if (r >= g + 50) && (r >= b + 50)
+            return "red"
+        return ""
+    }
+    ; most of the 3 pixels share a colour type: that type, else ""
+    static Majority(samples) {
+        greens := 0, reds := 0
+        for color in samples
+            (h := this.Hue(color)) = "green" ? greens++ : (h = "red") ? reds++ : 0
+        return (greens >= 2) ? "green" : (reds >= 2) ? "red" : ""
+    }
+    ; left: pixels at the start of the bar, right: pixels near its end. Red at the start = not started; green at the
+    ; start = started, and then the end decides: green = complete, red = still in progress
+    static ClassifyByHue(left, right) {
+        l := this.Majority(left)
+        if (l = "red")
+            return "incomplete"
+        if (l = "green") {
+            r := this.Majority(right)
+            return (r = "green") ? "complete" : (r = "red") ? "incomplete" : "unreadable"
+        }
+        return "unreadable"
+    }
+    ClassifyByHue(left, right) => QuestReader.ClassifyByHue(left, right)
 
     static Near(color, expected, tolerance) {
         for shift in [0, 8, 16]
