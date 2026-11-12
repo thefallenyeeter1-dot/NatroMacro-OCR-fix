@@ -86,6 +86,9 @@ ElevateScript() {
 }
 ElevateScript()
 
+; first run: offer to install the English Windows OCR language if it is missing (see nm_OCR.ahk)
+nm_OCR_FirstRunSetup()
+
 ; declare executable paths
 exe_path32 := A_AhkPath
 exe_path64 := (A_Is64bitOS && FileExist("submacros\AutoHotkey64.exe")) ? (A_WorkingDir "\submacros\AutoHotkey64.exe") : A_AhkPath

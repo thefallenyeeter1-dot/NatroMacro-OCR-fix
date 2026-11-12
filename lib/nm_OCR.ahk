@@ -62,6 +62,102 @@ nm_OCR_Language() {
 	return lang
 }
 
+; ---------------------------------------------------------------------------
+; FIRST RUN: make sure Windows OCR can read English
+; The OCR engine is part of Windows 10/11, but it needs a language pack, and many PCs (especially ones set up in
+; another language) don't have the English one. It's a Windows component from Windows Update, so it can't be
+; shipped inside the macro; instead the macro offers to install it with one click (Windows asks for admin
+; permission once). Choices are remembered in settings\ocr_setup.ini.
+; ---------------------------------------------------------------------------
+nm_OCR_FirstRunSetup() {
+	ini := A_WorkingDir "\settings\ocr_setup.ini"
+	if (IniRead(ini, "Setup", "DontAsk", 0) = 1)
+		return
+	; Windows 7/8 have no Windows OCR at all: say so once, the macro falls back to its pictures
+	if (VerCompare(A_OSVersion, "10.0") < 0) {
+		MsgBox "This Natro version reads the game with Windows OCR, which needs Windows 10 or 11.`n`n"
+			. "On this PC (Windows " A_OSVersion ") the macro will fall back to its old pictures, which stopped "
+			. "matching after Roblox's font update, so some features won't work.", "Natro OCR", 0x30
+		nm_OCR_SetupSave(ini, "DontAsk", 1)
+		return
+	}
+	langs := "", english := 0
+	try {
+		nm_OCRLib.nm_Init()
+		langs := nm_OCRLib.GetAvailableLanguages()
+	}
+	Loop Parse langs, "`n", "`r"
+		if (InStr(A_LoopField, "en-") = 1)
+			english := 1
+	if english
+		return
+	msg := (Trim(langs, "`r`n ") = "")
+		? "Windows OCR has no language installed on this PC, so the macro can't read the game's text (prompts, inventory, honey, buffs).`n`n"
+		: "Windows OCR has no English language installed (only: " StrReplace(Trim(langs, "`r`n "), "`n", ", ") "). English reads BSS's text much more reliably.`n`n"
+	msg .= "Install Windows' English OCR language now? It's a small Windows component downloaded from Windows Update. "
+		. "Windows will ask for admin permission, and it can take a few minutes.`n`n"
+		. "Yes = install now`nNo = ask again next time`nCancel = don't ask again"
+	switch MsgBox(msg, "Natro OCR setup", 0x23) {
+		case "No": return
+		case "Cancel":
+			nm_OCR_SetupSave(ini, "DontAsk", 1)
+			return
+	}
+	result := nm_OCR_InstallEnglish()
+	if (result = "ok") {
+		MsgBox "English OCR is installed. The macro will now restart so it can use it.", "Natro OCR setup", 0x40
+		Reload
+		ExitApp
+	}
+	MsgBox "The English OCR language couldn't be installed automatically:`n" result "`n`n"
+		. "You can install it by hand: Settings > Time & language > Language & region > Add a language > "
+		. "English (United States) (the 'Optical character recognition' part is enough). Then restart the macro.", "Natro OCR setup", 0x30
+}
+nm_OCR_SetupSave(ini, key, value) {
+	try {
+		DirCreate A_WorkingDir "\settings"
+		IniWrite value, ini, "Setup", key
+	}
+}
+; installs the Windows capability Language.OCR~~~en-US with an elevated PowerShell; returns "ok" or why it failed
+nm_OCR_InstallEnglish() {
+	ps1 := A_Temp "\natro_ocr_install.ps1", out := A_Temp "\natro_ocr_install.txt"
+	try FileDelete out
+	script := "
+	(
+		param([string]$out)
+		$ErrorActionPreference = 'Stop'
+		try {
+			$cap = Get-WindowsCapability -Online | Where-Object { $_.Name -like 'Language.OCR*en-US*' } | Select-Object -First 1
+			$name = if ($cap) { $cap.Name } else { 'Language.OCR~~~en-US~0.0.1.0' }
+			if (-not $cap -or $cap.State -ne 'Installed') { Add-WindowsCapability -Online -Name $name | Out-Null }
+			Set-Content -Path $out -Value 'ok'
+		} catch {
+			Set-Content -Path $out -Value $_.Exception.Message
+		}
+	)"
+	try FileOpen(ps1, "w", "UTF-8").Write(script)
+	catch as e
+		return "couldn't write the installer script (" e.Message ")"
+	g := Gui("+AlwaysOnTop -SysMenu +ToolWindow", "Natro OCR setup")
+	g.SetFont("s10")
+	g.Add("Text", "w340", "Installing Windows' English OCR language...`nThis can take a few minutes. Please wait.")
+	g.Show()
+	try
+		RunWait '*RunAs powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File "' ps1 '" -out "' out '"', , "Hide"
+	catch {
+		g.Destroy()
+		return "admin permission was refused"
+	}
+	g.Destroy()
+	try FileDelete ps1
+	if !FileExist(out)
+		return "the installer didn't report back (no internet, or Windows Update is blocked on this PC?)"
+	result := Trim(FileRead(out), "`r`n `t")
+	try FileDelete out
+	return (result = "") ? "unknown error" : result
+}
+
 ; OCRs a GDI+ bitmap. Word coordinates in the result are relative to the bitmap's top-left corner.
 ; Returns an nm_OCRLib.Result, or 0 on failure.
 nm_OCR_FromBitmap(pBitmap, scale := 1, invert := 0) {

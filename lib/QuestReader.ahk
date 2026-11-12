@@ -6,7 +6,7 @@ nm_ReadQuest(giver, quests) {
         reader := QuestReader(giver, quests)
         result := reader.Read()
         if result.state = "unreadable"
-            nm_setStatus("Quest", giver " quest could not be read")
+            nm_setStatus("Quest", giver " quest could not be read" ((reader.why != "") ? " (" reader.why ", see tools\OCR_debug\quest_fail.png)" : ""))
         return result
     } catch as err {
         nm_setStatus("Quest", giver " quest could not be read: " err.Message)
@@ -16,7 +16,7 @@ nm_ReadQuest(giver, quests) {
 
 class QuestReader {
     __New(giver, quests) {
-        this.images := Map(), this.bitmap := 0, this.quests := quests
+        this.images := Map(), this.bitmap := 0, this.quests := quests, this.why := "", this.dumped := 0, this.lastTitleText := "nothing"
         this.markers := giver = "Polar" ? ["polar_bear", "polar_bear2", "polar_bear3"]
             : giver = "Bucko" ? ["bucko", "bucko2"] : ["riley", "riley2"]
         this.giverName := giver = "Polar" ? "Polar Bear" : giver = "Bucko" ? "Bucko Bee" : "Riley Bee"
@@ -89,7 +89,7 @@ class QuestReader {
         gap := marker.HasOwnProp("ocr") ? this.Find("questbargap", marker.y - 10, marker.y + 60)
             : this.Find("questbargap", marker.y, marker.y + 45)
         if !gap
-            return {state: "unreadable"}
+            return this.Fail("no quest bar under the " (marker.HasOwnProp("ocr") ? "OCR'd" : "pictured") " name at y=" marker.y)
         title := this.OCRTitle(gap.y)
         if (title = "")
         for variation in [5, 10, 25, 50, 100] {
@@ -98,14 +98,14 @@ class QuestReader {
                 if this.Find(name, gap.y - 30, gap.y, variation)
                     matches.Push(name)
             if matches.Length > 1
-                return {state: "unreadable"}
+                return this.Fail("title pictures matched several quests")
             if matches.Length = 1 {
                 title := matches[1]
                 break
             }
         }
         if title = ""
-            return {state: "unreadable"}
+            return this.Fail("quest title not recognised (OCR read: " this.lastTitleText ")")
         rows := [], incomplete := false
         for objective in this.quests[title] {
             y := gap.y + QuestBarSize * (objective[1] - 1)
@@ -113,13 +113,23 @@ class QuestReader {
                 return {state: "clipped"}
             rowGap := this.Find("questbargap", y, y + QuestBarGapSize)
             if !rowGap || Abs(rowGap.y - y) > 2
-                return {state: "unreadable"}
+                return this.Fail(title ": objective " objective[1] " bar not where expected (y=" y (rowGap ? ", found at " rowGap.y : ", none found") ")")
             samples := []
             for dy in [5, 20, 34]
                 samples.Push(Gdip_GetPixel(this.bitmap, QuestBarInset + 6, rowGap.y + QuestBarGapSize + dy) & 0xFFFFFF)
             state := this.Classify(samples)
-            if state = "unreadable"
-                return {state: "unreadable"}
+            if state = "unreadable" {
+                ; the quest panel is see-through, so in a field the bar's exact shade shifts with whatever is
+                ; behind it (seen: 69D465 to 95EB7A for one bar). Then go by colour type instead, and look at the
+                ; right end of the bar too: a finished bar is green all the way, an unfinished one is still red there
+                right := []
+                for dy in [5, 20, 34]
+                    right.Push(Gdip_GetPixel(this.bitmap, QuestBarInset + 262, rowGap.y + QuestBarGapSize + dy) & 0xFFFFFF) ; bars end ~271 px in
+                state := this.ClassifyByHue(samples, right)
+                if state = "unreadable"
+                    return this.Fail(title ": objective " objective[1] " (" objective[2] " " objective[3] ") bar colour unknown: left "
+                        . Format("{:06X} {:06X} {:06X}", samples*) ", right " Format("{:06X} {:06X} {:06X}", right*))
+            }
             rows.Push(state)
             incomplete := incomplete || state = "incomplete"
         }
@@ -147,7 +157,32 @@ class QuestReader {
             names.Push(name)
         if (found := nm_OCRMatchNames(names, 0, gapY - 30, 306, 30, windowX, windowY))
             return names[found[1]]
+        ; for the failure note: what OCR saw in the title bar
+        this.lastTitleText := "nothing"
+        try {
+            pPart := Gdip_CloneBitmapArea(this.bitmap, 0, Max(0, gapY - 30), 306, 30)
+            if (r := nm_OCR_FromBitmap(pPart, 2, 0)) && (Trim(r.Text) != "")
+                this.lastTitleText := "'" Trim(r.Text) "'"
+            Gdip_DisposeImage(pPart)
+        }
         return ""
+    }
+
+    ; records why this page couldn't be read (shown in the status message) and, the first time per read, saves
+    ; the quest panel picture and the reason to tools\OCR_debug\quest_fail.png / .txt
+    Fail(why) {
+        this.why := why
+        if !this.dumped && this.bitmap {
+            this.dumped := 1
+            try {
+                dir := nm_OCR_RootDir() "\tools\OCR_debug"
+                DirCreate dir
+                Gdip_SaveBitmapToFile(this.bitmap, dir "\quest_fail.png")
+                FileOpen(dir "\quest_fail.txt", "w").Write(FormatTime(, "yyyy-MM-dd HH:mm:ss") "  " this.giverName "`n" why "`n"
+                    . "panel top " this.top ", bottom " this.bottom ", window " this.width "x" this.height "`n")
+            }
+        }
+        return {state: "unreadable"}
     }
 
     static Classify(samples) {
@@ -155,7 +190,7 @@ class QuestReader {
         for color in samples {
             if this.Near(color, 0xF46C55, 8) || this.Near(color, 0x6EFF60, 8)
                 incomplete += 1
-            else if this.Near(color, 0x8BF48B, 12)
+            else if this.Near(color, 0x8BF48B, 12) || this.Near(color, 0x6FD18C, 12) ; 6FD18C: current complete colour
                 complete += 1
         }
         if incomplete >= 2 && !complete
@@ -166,6 +201,36 @@ class QuestReader {
     }
 
     Classify(samples) => QuestReader.Classify(samples)
+
+    ; "green", "red" or "" for one pixel, by which colour clearly dominates (works through the see-through panel)
+    static Hue(color) {
+        r := (color >> 16) & 255, g := (color >> 8) & 255, b := color & 255
+        if (g >= r + 30) && (g >= b + 30)
+            return "green"
+        if (r >= g + 50) && (r >= b + 50)
+            return "red"
+        return ""
+    }
+    ; most of the 3 pixels share a colour type: that type, else ""
+    static Majority(samples) {
+        greens := 0, reds := 0
+        for color in samples
+            (h := this.Hue(color)) = "green" ? greens++ : (h = "red") ? reds++ : 0
+        return (greens >= 2) ? "green" : (reds >= 2) ? "red" : ""
+    }
+    ; left: pixels at the start of the bar, right: pixels near its end. Red at the start = not started; green at the
+    ; start = started, and then the end decides: green = complete, red = still in progress
+    static ClassifyByHue(left, right) {
+        l := this.Majority(left)
+        if (l = "red")
+            return "incomplete"
+        if (l = "green") {
+            r := this.Majority(right)
+            return (r = "green") ? "complete" : (r = "red") ? "incomplete" : "unreadable"
+        }
+        return "unreadable"
+    }
+    ClassifyByHue(left, right) => QuestReader.ClassifyByHue(left, right)
 
     static Near(color, expected, tolerance) {
         for shift in [0, 8, 16]
@@ -179,10 +244,10 @@ class QuestReader {
         this.Capture()
         next := this.ReadPage()
         if next.state != "ready" || next.title != result.title || next.rows.Length != result.rows.Length
-            return {state: "unreadable"}
+            return (next.state = "unreadable") ? next : this.Fail(result.title ": second read didn't match the first (" next.state ")")
         for i, state in result.rows
             if state != next.rows[i]
-                return {state: "unreadable"}
+                return this.Fail(result.title ": objective " i " read " state " then " next.rows[i])
         return next
     }
 
@@ -256,8 +321,11 @@ class QuestReader {
                 if confirmed.state = "ready"
                     return confirmed
             }
-            if stable >= 2
+            if stable >= 2 {
+                if (this.why = "")
+                    this.why := !sawQuest ? this.giverName " not found in the quest log" (reachedTop ? "" : " (couldn't scroll to the top)") : "quest seen but never read fully"
                 return {state: sawQuest || !reachedTop ? "unreadable" : "absent"}
+            }
             stable := this.Scroll("Down") ? 0 : stable + 1
         }
         return {state: "unreadable"}

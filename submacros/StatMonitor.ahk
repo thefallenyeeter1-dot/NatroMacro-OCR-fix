@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.1"
+version := "1.6.5"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
