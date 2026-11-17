@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.5"
+version := "1.6.8"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1487,6 +1487,63 @@ RequestReport(wParam, lParam, *)
 *   most often (at least twice), or 0. Each read locates the "Honey" label and joins the number to its right.
 *   If no value can be agreed on, the screenshot and every OCR reading are saved to tools\OCR_debug\honey_fail.*
 ********************************************************************************************************/
+; Blanks the yellow "(+X/sec)" rate that BSS draws right of the honey number (same colour as the digits), so
+; the OCR passes read only the number. The number is the first run of yellow columns right of the "Honey" label;
+; the rate sits after a clear gap (measured ~30 px; the gaps inside the number, for commas, are only 1-2 px).
+; Does nothing if the label isn't found or there is no number run - so it can only help, never remove digits.
+HoneyMaskRate(pBM, pBMc, w, h)
+{
+	if !(result := nm_OCR_FromBitmap(pBM, 3, 0))
+		return
+	if !(label := HoneyTopLabel(result))
+		return
+	x0 := Min(w - 1, Round(label.x + label.w) + 2)
+	; split the yellow columns right of the label into clusters (a gap wider than a comma, >12 px, ends a cluster).
+	; the number is the first cluster at least 25 px wide (small strays near the label are skipped; the rate sits
+	; in a later cluster). Blank everything right of the number, so the OCR passes read only "Honey <number>".
+	clStart := -1, clLast := -1, gap := 0, numEnd := -1, x := x0
+	while (x < w)
+	{
+		yellow := 0, y := 0
+		while (y < h)
+		{
+			c := Gdip_GetPixel(pBM, x, y)
+			r := (c >> 16) & 0xFF, g := (c >> 8) & 0xFF, b := c & 0xFF
+			if (r > 190 && g > 150 && b < 190 && r - b > 50)
+			{
+				yellow := 1
+				break
+			}
+			y += 1
+		}
+		if yellow
+			(clStart < 0 ? clStart := x : 0), clLast := x, gap := 0
+		else if (clStart >= 0) && (++gap > 12) ; cluster ended
+		{
+			if (clLast - clStart >= 25) ; wide enough to be the number
+			{
+				numEnd := clLast
+				break
+			}
+			clStart := -1, clLast := -1 ; a stray: skip it and look on
+		}
+		x += 1
+	}
+	if (numEnd < 0) && (clStart >= 0) && (clLast - clStart >= 25) ; number ran to the edge of the area
+		numEnd := clLast
+	if (numEnd < 0)
+		return
+	cut := Min(w, numEnd + 8)
+	if (cut >= w)
+		return
+	for p in [pBM, pBMc]
+	{
+		G := Gdip_GraphicsFromImage(p), brush := Gdip_BrushCreateSolid(0xff000000)
+		Gdip_FillRectangle(G, brush, cut, 0, w - cut, h)
+		Gdip_DeleteBrush(brush), Gdip_DeleteGraphics(G)
+	}
+}
+
 ReadHoneyCounter(winX, winY, winW, offsetY)
 {
 	; wide enough that the "Honey" label is inside even when the UI is drawn larger (display scaling)
@@ -1524,6 +1581,11 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	pBMc := Gdip_CloneBitmapArea(pBM, 0, 0, w, h)
 	if ((pEffect := Gdip_CreateEffect(5, -80, 30)) && !InStr(pEffect, "err"))
 		Gdip_BitmapApplyEffect(pBMc, pEffect), Gdip_DisposeEffect(pEffect)
+
+	; BSS now shows a yellow rate "(+1,639,528/sec)" right of the honey number, same colour as the digits. It
+	; sits in the read area and corrupts most OCR passes (only one scale read the number, so no two agreed and
+	; the minute logged "no reading"). Blank it out, so every pass reads just "Honey <number>".
+	HoneyMaskRate(pBM, pBMc, w, h)
 
 	; black-on-white versions: every pixel brighter than the threshold becomes black, the rest white. The
 	; counter is white text on a dark bar, and OCR reads clean black text on white far more reliably
@@ -2166,8 +2228,9 @@ HoneyTightCrop(pBM, w, h)
 	ry1 := Max(0, Round(label.y) - 7), ry2 := Min(h, Round(label.y + label.h) + 7)
 	if (rx2 - rx1 < 20 || ry2 - ry1 < 8)
 		return 0
-	; columns containing yellow digit pixels; the digits are the first run of them (gaps up to 10 px for commas)
-	first := -1, last := -1, gap := 0
+	; columns containing yellow digit pixels. The number is the first run at least 25 px wide (gaps up to 12 px
+	; for commas). Small strays near the label, and the yellow "(+X/sec)" rate after a wide gap, are skipped.
+	first := -1, last := -1, gap := 0, numFirst := -1, numLast := -1
 	Loop rx2 - rx1
 	{
 		x := rx1 + A_Index - 1, yellow := 0
@@ -2187,11 +2250,20 @@ HoneyTightCrop(pBM, w, h)
 				first := x
 			last := x, gap := 0
 		}
-		else if (first >= 0) && (++gap > 10)
-			break
+		else if (first >= 0) && (++gap > 12)
+		{
+			if (last - first >= 25) ; wide enough to be the number
+			{
+				numFirst := first, numLast := last
+				break
+			}
+			first := -1, last := -1 ; a stray: skip it
+		}
 	}
-	if (first >= 0) && (last - first >= 15)
-		rx1 := Max(0, first - 4), rx2 := Min(w, last + 5)
+	if (numFirst < 0) && (first >= 0) && (last - first >= 25) ; number ran to the edge
+		numFirst := first, numLast := last
+	if (numFirst >= 0)
+		rx1 := Max(0, numFirst - 4), rx2 := Min(w, numLast + 5)
 	return Gdip_CloneBitmapArea(pBM, rx1, ry1, rx2 - rx1, ry2 - ry1)
 }
 

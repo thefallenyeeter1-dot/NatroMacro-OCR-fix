@@ -22150,7 +22150,9 @@ DisconnectCheck(testCheck := 0)
 					nm_setStatus("Detected", "Game Open")
 					break
 				}
-				if (Gdip_ImageSearch(pBMScreen, bitmaps["science"], , , , , 150, 2) = 1) {
+				; game loaded = the "Honey"/"Pollen" counters are on screen (OCR), or the old menu-button picture still
+				; matches. OCR survives Roblox menu recolours; the picture covers PCs without Windows OCR.
+				if (nm_OCRGameLoaded(pBMScreen) || (Gdip_ImageSearch(pBMScreen, bitmaps["science"], , , , , 150, 2) = 1)) {
 					Gdip_DisposeImage(pBMScreen)
 					nm_setStatus("Detected", "Game Loaded")
 					success := 1
@@ -22176,7 +22178,7 @@ DisconnectCheck(testCheck := 0)
 					continue 2
 				}
 				pBMScreen := Gdip_BitmapFromScreen(windowX "|" windowY+30 "|" windowWidth "|" windowHeight-30)
-				if ((Gdip_ImageSearch(pBMScreen, bitmaps["loading"], , , , , 150, 4) = 0) || (Gdip_ImageSearch(pBMScreen, bitmaps["science"], , , , , 150, 2) = 1)) {
+				if (nm_OCRGameLoaded(pBMScreen) || (Gdip_ImageSearch(pBMScreen, bitmaps["loading"], , , , , 150, 4) = 0) || (Gdip_ImageSearch(pBMScreen, bitmaps["science"], , , , , 150, 2) = 1)) {
 					Gdip_DisposeImage(pBMScreen)
 					nm_setStatus("Detected", "Game Loaded")
 					success := 1
