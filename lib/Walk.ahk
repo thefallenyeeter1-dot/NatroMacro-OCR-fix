@@ -143,10 +143,10 @@ DetectMovespeed(&s, &f, hasteCap:=0)
 HasteStack(hasteX, reset := 0)
 {
 	global buff_characters, offsetY
-	static lastStack := 1, lastTick := 0, lastGood := 0, lastX := -100, lastDump := 0
+	static lastStack := 1, lastTick := 0, lastGood := 0, lastX := -100, lastDump := 0, hist := [], everRead := 0
 	if reset
 	{
-		lastStack := 1, lastTick := 0, lastGood := 0, lastX := -100
+		lastStack := 1, lastTick := 0, lastGood := 0, lastX := -100, hist := [], everRead := 0
 		return 1
 	}
 	; reuse a read from the last second while the haste icon is still in the same place
@@ -155,18 +155,26 @@ HasteStack(hasteX, reset := 0)
 	lastTick := A_TickCount, lastX := hasteX
 	GetRobloxClientPos()
 	pBM := Gdip_BitmapFromScreen(windowX "|" windowY+offsetY+30 "|" windowWidth "|50")
-	if (nm_OCR_Language() = "")
+	; fast path: image-search Baddie Mon's self-learned haste pictures (no OCR, ~1 ms). Once the number has been
+	; learned this answers every read and OCR never runs in the walk loop.
+	n := nm_HasteLearnedMatch(pBM, hasteX+6, 15, hasteX+44, 50)
+	readSrc := "learned"
+	if (n = "")
 	{
-		n := ""
-		Loop 9
-			if (Gdip_ImageSearch(pBM, buff_characters[10-A_Index], , hasteX+6, 15, hasteX+44, 50) = 1)
-			{
-				n := (A_Index = 9) ? 10 : 10 - A_Index
-				break
-			}
+		readSrc := "ocr"
+		if (nm_OCR_Language() = "")
+		{
+			readSrc := "picture", n := ""
+			Loop 9
+				if (Gdip_ImageSearch(pBM, buff_characters[10-A_Index], , hasteX+6, 15, hasteX+44, 50) = 1)
+				{
+					n := (A_Index = 9) ? 10 : 10 - A_Index
+					break
+				}
+		}
+		else
+			n := nm_OCRReadStack(pBM, hasteX+6, 15, hasteX+44, 50, 10) ; OCR only until the number is learned
 	}
-	else
-		n := nm_OCRReadStack(pBM, hasteX+6, 15, hasteX+44, 50, 10) ; digit pictures for 2-10 first, OCR as a fallback
 	; no number read: keep a snapshot (at most every 30 s) in tools\OCR_debug\haste_fail.png for diagnosis.
 	; Haste at x1 shows no number, so a snapshot alone doesn't mean something is wrong
 	if (n = "") && (A_TickCount - lastDump > 30000)
@@ -182,13 +190,44 @@ HasteStack(hasteX, reset := 0)
 		DirCreate nm_OCR_RootDir() "\tools\OCR_debug"
 		if (FileExist(logPath) && FileGetSize(logPath) > 50000)
 			FileDelete logPath
-		FileAppend FormatTime(, "HH:mm:ss") "  haste icon x" hasteX "  read: " ((n != "") ? "x" n : "no number") "`n", logPath
+		FileAppend FormatTime(, "HH:mm:ss") "  haste icon x" hasteX "  read: " ((n != "") ? "x" n " (" readSrc ")" : "no number") "`n", logPath
 	}
+	; The stack number on the new white Haste icon is white digits with a thin dark outline on a white tile
+	; (white-on-white), so Windows OCR reads it only now and then and sometimes misreads it (e.g. x6 or x8 when it
+	; is really x10, sometimes the same wrong number twice in a row). So the value is NOT taken from a single read:
+	;  - the last few successful reads are kept and the value shown is the one read most often (majority vote), so
+	;    a couple of odd reads among many correct ones are outvoted, and
+	;  - a run of "no number" no longer drops the value to x1. The icon disappearing is what means "no haste", and
+	;    that already resets this (HasteStack(0, 1) from DetectMovespeed), so a held value never outlives the buff.
+	;    (Trade-off: if the stack silently drops while the icon stays up and the new number can't be read, the old
+	;    value is held; far better than treating a clear x10 as no haste, which was the bug people reported.)
 	if (n != "")
-		lastStack := n, lastGood := A_TickCount
-	else if (A_TickCount - lastGood > 20000)
-		lastStack := 1 ; no number for 20 s (a full Haste duration): x1 (BSS shows no number at x1)
-	; a missed read while the Haste icon is still showing is far more likely than stacks silently dropping,
-	; and the stored value is cleared as soon as the icon disappears (HasteStack(0, 1))
-	return lastStack
+	{
+		everRead := 1, lastGood := A_TickCount
+		hist.Push(n)
+		if (hist.Length > 7)
+			hist.RemoveAt(1)
+		counts := Map()
+		for v in hist
+			counts[v] := counts.Has(v) ? counts[v] + 1 : 1
+		bestC := 0
+		for v, c in counts
+			if (c > bestC)
+				bestC := c
+		; the most-read value; if the one we are already showing is tied for most-read, keep it (no flicker)
+		if (counts.Has(lastStack) && counts[lastStack] = bestC)
+			best := lastStack
+		else
+		{
+			best := lastStack
+			for v, c in counts
+				if (c = bestC)
+				{
+					best := v
+					break
+				}
+		}
+		lastStack := best
+	}
+	return everRead ? lastStack : 1
 }

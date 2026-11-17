@@ -676,6 +676,64 @@ nm_OCRFindPhraseIn(pBM, phrases, x, y, w, h, allowed := 1, scale := 2) {
 	return r
 }
 
+; BSS is loaded and interactive when the top counters are on screen: they read "Honey" and "Pollen", white
+; text that OCR reads through any menu recolour (the picture check went stale when a Roblox update recoloured the
+; menu buttons, so the macro sat on "No BSS Found" with the game fully loaded). Both words must be found, so random
+; in-world text can't pass as loaded. Reads the top ~90 px when it can (quicker, and that is where the counters
+; are); full bitmap otherwise. Returns 1 if both words are seen, else 0 (then the caller still tries the picture).
+nm_OCRGameLoaded(pBM) {
+	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
+	if (h > 110) {
+		pPart := Gdip_CloneBitmapArea(pBM, 0, 0, w, 110)
+		r := nm_OCRFindPhrase(pPart, ["honey"], 1) && nm_OCRFindPhrase(pPart, ["pollen"], 1)
+		Gdip_DisposeImage(pPart)
+		if r
+			return 1
+		; counters not in the top strip (unusual window) - fall back to the whole bitmap
+	}
+	return nm_OCRFindPhrase(pBM, ["honey"], 1) && nm_OCRFindPhrase(pBM, ["pollen"], 1)
+}
+
+; Fast image search of Baddie Mon's self-learned Haste number pictures (settings\buff_digits_learned\haste_*.png).
+; StatMonitor learns the Haste stack number in the current font with a magenta-masked background, so these match
+; on the white-on-white Haste tile where OCR struggles, and a match is ~1 ms instead of OCR's hundreds. This lets
+; walking read the stack without OCR once it has been learned; OCR stays as the bootstrap/fallback. The picture
+; set is reloaded from disk at most every 30 s (to pick up newly learned numbers). Returns the number, or ""
+; (also "" if pictures of two different numbers both match, i.e. ambiguous).
+nm_HasteLearnedMatch(pBMArea, x1, y1, x2, y2) {
+	static pics := Map(), nextScan := 0
+	if (A_TickCount >= nextScan) {
+		nextScan := A_TickCount + 30000
+		for n, list in pics
+			for p in list
+				Gdip_DisposeImage(p)
+		pics := Map()
+		Loop Files A_WorkingDir "\settings\buff_digits_learned\haste_*.png" {
+			if !RegExMatch(A_LoopFileName, "^haste_(\d+)_\d+\.png$", &m)
+				continue
+			if !(pT := Gdip_CreateBitmapFromFile(A_LoopFileFullPath))
+				continue
+			k := Integer(m[1])
+			if !pics.Has(k)
+				pics[k] := []
+			pics[k].Push(pT)
+		}
+	}
+	if !pics.Count
+		return ""
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	found := ""
+	for n, list in pics
+		for pT in list
+			if (Gdip_ImageSearch(pBMArea, pT, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 10), Min(h, y2 + 4), 70, 0xFF00FF) = 1) {
+				if (found != "") && (found != n)
+					return ""
+				found := n
+				break
+			}
+	return found
+}
+
 ; "Make Honey" hive prompt in the top-middle area of pBM (only the first 400x120 px are read)
 nm_OCRMakeHoney(pBM) {
 	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
