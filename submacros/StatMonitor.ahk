@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.8"
+version := "1.6.9"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1593,7 +1593,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	for threshold in [0.55, 0.7, 0.85]
 		variants.Push([HoneyThreshold(pBM, threshold), "threshold " threshold, [3, 4], [0]])
 
-	reads := [], readSrc := [], readLog := ""
+	reads := [], readSrc := [], readLog := "", done := 0
 	; most reliable: a tight crop of just the number (found from the "Honey" label and the counter's yellow
 	; digits), cleaned up and read on a white background. The counter bar is see-through, so hive cells and
 	; their level numbers show behind the digits; the yellow filter removes them
@@ -1611,17 +1611,29 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 				if (v != "") && (StrLen(v) >= 4)
 					reads.Push(v), reads.Push(v), readSrc.Push(tv[1] " x" scale, tv[1] " x" scale) ; counts double: these reads are much cleaner than the wide ones
 				readLog .= tv[1] " x" scale ": " StrReplace(result.Text, "`n", " / ") "  ->  " ((v != "") ? v : "-") "`n"
+				if (HoneyStrongValue(reads, readSrc) != "")
+				{
+					done := 1
+					break
+				}
 			}
 			Gdip_DisposeImage(pPad)
+			if done
+				break
 		}
 		Gdip_DisposeImage(pTight)
 	}
 	else
 		readLog .= "tight crop: Honey label not found`n"
+	; the wide passes only run if the tight crop didn't already give two agreeing reads
 	for variant in variants
 	{
+		if done
+			break
 		for scale in variant[3]
 		{
+			if done
+				break
 			for invert in variant[4]
 			{
 				if !(result := nm_OCR_FromBitmap(variant[1], scale, invert))
@@ -1630,6 +1642,11 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 				if (v != "")
 					reads.Push(v), readSrc.Push(variant[2] " x" scale (invert ? " inverted" : ""))
 				readLog .= variant[2] " x" scale (invert ? " inverted" : "") ": " StrReplace(result.Text, "`n", " / ") "  ->  " ((v != "") ? v : "-") "`n"
+				if (HoneyStrongValue(reads, readSrc) != "")
+				{
+					done := 1
+					break
+				}
 			}
 		}
 	}
@@ -2303,6 +2320,26 @@ HoneyThreshold(pBM, threshold)
 
 ; picks the honey value from several OCR reads (digit strings): a value read at least twice wins; otherwise
 ; a digit-by-digit majority of the reads that have the most common length (3+ reads, every digit agreed by 2+)
+; the value read by at least two DIFFERENT passes (sources). Used to stop reading early: once two independent
+; passes agree, more passes cost CPU (Windows OCR is heavy) without changing the answer. Tight reads are pushed
+; twice for weighting but share one source, so one tight read alone is not "strong".
+HoneyStrongValue(reads, readSrc)
+{
+	srcs := Map()
+	for i, r in reads
+	{
+		if (r = "")
+			continue
+		if !srcs.Has(r)
+			srcs[r] := Map()
+		srcs[r][readSrc[i]] := 1
+	}
+	for r, ss in srcs
+		if (ss.Count >= 2)
+			return r
+	return ""
+}
+
 HoneyConsensus(reads)
 {
 	if !reads.Length
