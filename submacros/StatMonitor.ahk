@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.9"
+version := "1.6.11"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -936,15 +936,26 @@ ReadBuffStack(pBMArea, x1, y1, x2, y2, maxVal := 10, key := "")
 		n := n
 	else if (maxVal = 10) && ((n := BuffLearnedMatch(pBMArea, key, x1, y1, x2, y2)) != "")
 		n := n ; digit pictures this PC has learned (see BuffLearnSample)
-	else if ((n := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal, &box)) = "")
-		n := StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
-	else if (maxVal = 10) && (key != "") && !BuffLearnedHas(key, n)
+	else
 	{
-		; learning: no picture knows this number yet, so confirm the whole-bar OCR read with the separate close-up
-		; read of the SAME screenshot (no time passes, so fast-changing stacks don't matter). If both agree, the
-		; look of this number is collected; it is only trusted after 3 alike confirmations
-		if (StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal) = n)
-			BuffLearnSample(pBMArea, key, n, box)
+		; whole-bar OCR, then a close-up OCR of the same screenshot as fallback / confirmation
+		wordBox := "", cropBox := "", cropN := ""
+		wordN := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal, &wordBox)
+		if (wordN = "") || ((maxVal = 10) && (key != "") && !BuffLearnedHas(key, wordN))
+			cropN := StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal, &cropBox)
+		n := (wordN != "") ? wordN : cropN
+		; learning: collect a not-yet-learned number when two independent reads of the SAME screenshot agree (no time
+		; passes, so fast-changing stacks don't matter). The whole-bar read usually fails on the white-on-white Haste
+		; tile, so when only the close-up read succeeds it is confirmed instead against the dark-outline threshold read
+		; (independent preprocessing) so Haste can bootstrap too. A look is only trusted after 3 alike confirmations,
+		; and a look seen as two different numbers is thrown away, so a stray agreement can't poison the set.
+		if (maxVal = 10) && (key != "") && (n != "") && !BuffLearnedHas(key, n)
+		{
+			if (wordN = n) && (cropN = n) && IsObject(wordBox)
+				BuffLearnSample(pBMArea, key, n, wordBox)
+			else if (wordN = "") && (cropN = n) && IsObject(cropBox) && (BuffOutlineRead(pBMArea, x1, y1, x2, y2, maxVal) = n)
+				BuffLearnSample(pBMArea, key, n, cropBox)
+		}
 	}
 	if (n != "")
 	{
@@ -1169,8 +1180,9 @@ StackFromWords(words, x1, y1, x2, y2, maxVal, &box?)
 
 ; close-up OCR of one buff's number area: cropped, placed on a larger dark canvas (OCR reads tiny
 ; isolated images badly) and read upscaled, normal and inverted
-StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
+StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal, &box?)
 {
+	box := ""
 	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
 	cx1 := Max(0, x1 - 10), cy1 := Max(0, y1 - 6), cx2 := Min(w, x2 + 10), cy2 := Min(h, y2 + 4)
 	cw := cx2 - cx1, ch := cy2 - cy1
@@ -1188,10 +1200,34 @@ StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
 		words := []
 		for word in result.Words ; back to pBMArea coordinates
 			words.Push({text: word.Text, x: word.x - 40 + cx1, y: word.y - 20 + cy1, w: word.w, h: word.h})
-		if ((n := StackFromWords(words, x1, y1, x2, y2, maxVal)) != "")
+		if ((n := StackFromWords(words, x1, y1, x2, y2, maxVal, &box)) != "")
 			break
 	}
 	Gdip_DisposeImage(pCanvas)
+	return n
+}
+
+; Independent close-up read used only to confirm learning on bright/white tiles such as Haste: the white number's
+; dark outline is turned into black-on-white and read (different preprocessing from StackFromCrop, so agreement
+; between the two is a genuine second witness where the whole-bar OCR fails). Returns 2..maxVal or "".
+BuffOutlineRead(pBMArea, x1, y1, x2, y2, maxVal)
+{
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	sx1 := Max(0, x1 - 14), sx2 := Min(w, x2 + 14)
+	if (sx2 - sx1 < 6)
+		return ""
+	pStrip := Gdip_CloneBitmapArea(pBMArea, sx1, 0, sx2 - sx1, h)
+	pT := nm_OCR_Threshold(pStrip, 0.35, 0) ; keep only the dark outline -> black on white
+	Gdip_DisposeImage(pStrip)
+	n := ""
+	if (result := nm_OCR_FromBitmap(pT, 4, 0))
+	{
+		words := []
+		for word in result.Words
+			words.Push({text: word.Text, x: word.x + sx1, y: word.y, w: word.w, h: word.h})
+		n := StackFromWords(words, x1, y1, x2, y2, maxVal)
+	}
+	Gdip_DisposeImage(pT)
 	return n
 }
 
@@ -1656,6 +1692,22 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	; long counters (19 digits at 6 Qa) are rarely read identically twice, so if no two reads agree exactly,
 	; build the number digit by digit from the reads of the most common length (needs 3+ such reads)
 	best := HoneyConsensus(reads)
+	; TRUNCATION GUARD. Honey only grows, so its digit count never drops. On big accounts OCR sometimes reads only
+	; the leading digits (e.g. "174347" out of 174,984,337,947,039); that short misread used to become "last good"
+	; and then block every real 15-digit read as an impossible jump. Once two reads have agreed on the real length,
+	; a read 4+ digits shorter is treated as a misread and dropped, so it can never poison the value.
+	static honey_len := 0
+	bestCount := 0
+	for r in reads
+		if (r = best)
+			bestCount++
+	if (best != "") && (bestCount >= 2) && (StrLen(best) > honey_len) && (StrLen(best) <= 19)
+		honey_len := StrLen(best)
+	if (best != "") && (honey_len >= 12) && (StrLen(best) < honey_len - 3)
+	{
+		try FileAppend FormatTime(, "HH:mm:ss") "  dropped truncated read " best " (" StrLen(best) " digits; honey is ~" honey_len " digits)`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+		best := ""
+	}
 	; how many different OCR reads gave exactly this number (a number pieced together digit by digit has none)
 	runs := Map()
 	for i, r in reads

@@ -203,6 +203,7 @@ HasteStack(hasteX, reset := 0)
 	;    value is held; far better than treating a clear x10 as no haste, which was the bug people reported.)
 	if (n != "")
 	{
+		wasRead := everRead
 		everRead := 1, lastGood := A_TickCount
 		hist.Push(n)
 		if (hist.Length > 7)
@@ -227,7 +228,12 @@ HasteStack(hasteX, reset := 0)
 					break
 				}
 		}
-		lastStack := best
+		; drift hardening: this value drives the movespeed formula, so a single stray misread must not spike the walk
+		; speed and slide the character off the field. Once a value is established, switch to a different one only
+		; after it has been read at least twice. The first value after the icon appears is taken at once (so movespeed
+		; is not left at x1).
+		if (!wasRead) || (best = lastStack) || (counts[best] >= 2)
+			lastStack := best
 	}
 	return everRead ? lastStack : 1
 }
