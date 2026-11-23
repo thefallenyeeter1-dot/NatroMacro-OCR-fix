@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.9"
+version := "1.6.13"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -687,17 +687,22 @@ DetectBuffs()
 	}
 
 	; basic x1-x10
+	static buffSeen := Map()
 	for v in ["focus","bombcombo","balloonaura","clock","honeymark","pollenmark","reindeerfetch"]
 	{
 		if (Gdip_ImageSearch(pBMArea, buff_bitmaps["pBM" v], &list, , InStr(v, "mark") ? 20 : 30, , 50, InStr(v, "mark") ? 6 : 0, , 7) != 1)
 		{
-			buff_values[v][i] := 0
+			; brief hold: a single-frame icon miss (the icon flickers or is briefly occluded) shouldn't zero an active
+			; buff and notch the graph. Keep the last value for up to 2.5 s after the icon was last seen.
+			buff_values[v][i] := (buffSeen.Has(v) && (A_TickCount - buffSeen[v][2] <= 2500)) ? buffSeen[v][1] : 0
 			continue
 		}
 
 		x := SubStr(list, 1, InStr(list, ",")-1)
 
 		buff_values[v][i] := ReadBuffStack(pBMArea, x-20, 15, x, 50, 10, v)
+		if (buff_values[v][i] > 0)
+			buffSeen[v] := [buff_values[v][i], A_TickCount]
 	}
 
 	; mondo
@@ -936,15 +941,28 @@ ReadBuffStack(pBMArea, x1, y1, x2, y2, maxVal := 10, key := "")
 		n := n
 	else if (maxVal = 10) && ((n := BuffLearnedMatch(pBMArea, key, x1, y1, x2, y2)) != "")
 		n := n ; digit pictures this PC has learned (see BuffLearnSample)
-	else if ((n := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal, &box)) = "")
-		n := StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
-	else if (maxVal = 10) && (key != "") && !BuffLearnedHas(key, n)
+	else
 	{
-		; learning: no picture knows this number yet, so confirm the whole-bar OCR read with the separate close-up
-		; read of the SAME screenshot (no time passes, so fast-changing stacks don't matter). If both agree, the
-		; look of this number is collected; it is only trusted after 3 alike confirmations
-		if (StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal) = n)
-			BuffLearnSample(pBMArea, key, n, box)
+		; whole-bar OCR, then a close-up OCR of the same screenshot as fallback / confirmation
+		wordBox := "", cropBox := "", cropN := ""
+		wordN := StackFromWords(BuffStackWords(pBMArea), x1, y1, x2, y2, maxVal, &wordBox)
+		if (wordN = "") || ((maxVal = 10) && (key != "") && !BuffLearnedHas(key, wordN))
+			cropN := StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal, &cropBox)
+		n := (wordN != "") ? wordN : cropN
+		if (n = "") && (maxVal = 10) && (key != "")
+			n := BuffOutlineRead(pBMArea, x1, y1, x2, y2, maxVal) ; white-on-white (Haste): read the number via its dark outline
+		; learning: collect a not-yet-learned number when two independent reads of the SAME screenshot agree (no time
+		; passes, so fast-changing stacks don't matter). The whole-bar read usually fails on the white-on-white Haste
+		; tile, so when only the close-up read succeeds it is confirmed instead against the dark-outline threshold read
+		; (independent preprocessing) so Haste can bootstrap too. A look is only trusted after 3 alike confirmations,
+		; and a look seen as two different numbers is thrown away, so a stray agreement can't poison the set.
+		if (maxVal = 10) && (key != "") && (n != "") && !BuffLearnedHas(key, n)
+		{
+			if (wordN = n) && (cropN = n) && IsObject(wordBox)
+				BuffLearnSample(pBMArea, key, n, wordBox)
+			else if (wordN = "") && (cropN = n) && IsObject(cropBox) && (BuffOutlineRead(pBMArea, x1, y1, x2, y2, maxVal) = n)
+				BuffLearnSample(pBMArea, key, n, cropBox)
+		}
 	}
 	if (n != "")
 	{
@@ -1169,8 +1187,9 @@ StackFromWords(words, x1, y1, x2, y2, maxVal, &box?)
 
 ; close-up OCR of one buff's number area: cropped, placed on a larger dark canvas (OCR reads tiny
 ; isolated images badly) and read upscaled, normal and inverted
-StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
+StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal, &box?)
 {
+	box := ""
 	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
 	cx1 := Max(0, x1 - 10), cy1 := Max(0, y1 - 6), cx2 := Min(w, x2 + 10), cy2 := Min(h, y2 + 4)
 	cw := cx2 - cx1, ch := cy2 - cy1
@@ -1188,10 +1207,48 @@ StackFromCrop(pBMArea, x1, y1, x2, y2, maxVal)
 		words := []
 		for word in result.Words ; back to pBMArea coordinates
 			words.Push({text: word.Text, x: word.x - 40 + cx1, y: word.y - 20 + cy1, w: word.w, h: word.h})
-		if ((n := StackFromWords(words, x1, y1, x2, y2, maxVal)) != "")
+		if ((n := StackFromWords(words, x1, y1, x2, y2, maxVal, &box)) != "")
 			break
 	}
+	; white-digit pass: on a coloured tile (e.g. blue boost, ~143 luminance) the plain read often misses the white
+	; number (~228). Threshold the bright digits to black-on-white so they read regardless of the tile colour.
+	if (n = "")
+	{
+		pTh := nm_OCR_Threshold(pCanvas, 0.72, 1)
+		if (result := nm_OCR_FromBitmap(pTh, 5, 0))
+		{
+			words := []
+			for word in result.Words
+				words.Push({text: word.Text, x: word.x - 40 + cx1, y: word.y - 20 + cy1, w: word.w, h: word.h})
+			n := StackFromWords(words, x1, y1, x2, y2, maxVal, &box)
+		}
+		Gdip_DisposeImage(pTh)
+	}
 	Gdip_DisposeImage(pCanvas)
+	return n
+}
+
+; Independent close-up read used only to confirm learning on bright/white tiles such as Haste: the white number's
+; dark outline is turned into black-on-white and read (different preprocessing from StackFromCrop, so agreement
+; between the two is a genuine second witness where the whole-bar OCR fails). Returns 2..maxVal or "".
+BuffOutlineRead(pBMArea, x1, y1, x2, y2, maxVal)
+{
+	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	sx1 := Max(0, x1 - 14), sx2 := Min(w, x2 + 14)
+	if (sx2 - sx1 < 6)
+		return ""
+	pStrip := Gdip_CloneBitmapArea(pBMArea, sx1, 0, sx2 - sx1, h)
+	pT := nm_OCR_Threshold(pStrip, 0.35, 0) ; keep only the dark outline -> black on white
+	Gdip_DisposeImage(pStrip)
+	n := ""
+	if (result := nm_OCR_FromBitmap(pT, 4, 0))
+	{
+		words := []
+		for word in result.Words
+			words.Push({text: word.Text, x: word.x + sx1, y: word.y, w: word.w, h: word.h})
+		n := StackFromWords(words, x1, y1, x2, y2, maxVal)
+	}
+	Gdip_DisposeImage(pT)
 	return n
 }
 
@@ -1599,7 +1656,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	; their level numbers show behind the digits; the yellow filter removes them
 	if (pTight := HoneyTightCrop(pBM, w, h))
 	{
-		for tv in [["tight yellow", HoneyYellow(pTight)], ["tight threshold 0.7", nm_OCR_Threshold(pTight, 0.7, 1)], ["tight threshold 0.6", nm_OCR_Threshold(pTight, 0.6, 1)]]
+		for tv in [["tight warm", HoneyWarm(pTight)], ["tight yellow", HoneyYellow(pTight)], ["tight threshold 0.7", nm_OCR_Threshold(pTight, 0.7, 1)], ["tight threshold 0.6", nm_OCR_Threshold(pTight, 0.6, 1)]]
 		{
 			pPad := HoneyPad(tv[2])
 			Gdip_DisposeImage(tv[2])
@@ -1656,6 +1713,22 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 	; long counters (19 digits at 6 Qa) are rarely read identically twice, so if no two reads agree exactly,
 	; build the number digit by digit from the reads of the most common length (needs 3+ such reads)
 	best := HoneyConsensus(reads)
+	; TRUNCATION GUARD. Honey only grows, so its digit count never drops. On big accounts OCR sometimes reads only
+	; the leading digits (e.g. "174347" out of 174,984,337,947,039); that short misread used to become "last good"
+	; and then block every real 15-digit read as an impossible jump. Once two reads have agreed on the real length,
+	; a read 4+ digits shorter is treated as a misread and dropped, so it can never poison the value.
+	static honey_len := 0
+	bestCount := 0
+	for r in reads
+		if (r = best)
+			bestCount++
+	if (best != "") && (bestCount >= 2) && (StrLen(best) > honey_len) && (StrLen(best) <= 19)
+		honey_len := StrLen(best)
+	if (best != "") && (honey_len >= 12) && (StrLen(best) < honey_len - 3)
+	{
+		try FileAppend FormatTime(, "HH:mm:ss") "  dropped truncated read " best " (" StrLen(best) " digits; honey is ~" honey_len " digits)`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+		best := ""
+	}
 	; how many different OCR reads gave exactly this number (a number pieced together digit by digit has none)
 	runs := Map()
 	for i, r in reads
@@ -2312,6 +2385,21 @@ HoneyThreshold(pBM, threshold)
 	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM), k := 12
 	r := -k*0.299, g := -k*0.587, b := -k*0.114, t := k*threshold + 0.5
 	matrix := r "|" r "|" r "|0|0|" g "|" g "|" g "|0|0|" b "|" b "|" b "|0|0|0|0|0|1|0|" t "|" t "|" t "|0|1"
+	pOut := Gdip_CreateBitmap(w, h), G := Gdip_GraphicsFromImage(pOut)
+	Gdip_DrawImage(G, pBM, 0, 0, w, h, 0, 0, w, h, matrix)
+	Gdip_DeleteGraphics(G)
+	return pOut
+}
+
+; Isolates the warm gold digits by COLOUR (red minus blue) instead of brightness: the digit -> black, everything
+; else -> white. Needed when the counter sits in a light/grey highlight box - there the digits (~200 bright) and the
+; box (~120 bright) are too close for a brightness threshold, but the digits are strongly warm (R-B ~= 100) while the
+; box is near-neutral (R-B ~= 28). out = -12*R + 12*B + 3.5, so warm pixels go negative (black) and neutral/dark/blue
+; pixels stay >=1 (white). Works for the dark-bar case too (dark bg -> white).
+HoneyWarm(pBM)
+{
+	w := Gdip_GetImageWidth(pBM), h := Gdip_GetImageHeight(pBM)
+	matrix := "-12|-12|-12|0|0|0|0|0|0|0|12|12|12|0|0|0|0|0|1|0|3.5|3.5|3.5|0|1"
 	pOut := Gdip_CreateBitmap(w, h), G := Gdip_GraphicsFromImage(pOut)
 	Gdip_DrawImage(G, pBM, 0, 0, w, h, 0, 0, w, h, matrix)
 	Gdip_DeleteGraphics(G)
