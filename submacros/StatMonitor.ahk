@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.13"
+version := "1.6.15"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -160,6 +160,10 @@ if (ocr_enabled = 1)
 ; HONEY MONITORING
 ; honey_values format: (A_Min):value
 honey_values := Map()
+; honey_rate_values format: (A_Min):rate - the "(+X/sec)" rate BSS paints next to the counter, read directly and
+; used to fill the honey/sec graph where the counter itself missed a minute (prevents the flat plateaus)
+honey_rate_values := Map()
+honey_rate_read := "" ; the rate read on the most recent honey capture ("" if none), set by HoneyMaskRate
 ; quick picture-only honey reads taken every 12 s between the minute readings ([tick, value]), used to cross-check
 ; each minute's reading; cleared by every minute reading
 honey_samples := []
@@ -964,15 +968,27 @@ ReadBuffStack(pBMArea, x1, y1, x2, y2, maxVal := 10, key := "")
 				BuffLearnSample(pBMArea, key, n, cropBox)
 		}
 	}
+	ret := ""
 	if (n != "")
 	{
 		if (key != "")
 			lastRead[key] := [n, A_TickCount]
-		return n
+		ret := n
 	}
-	if (key != "") && lastRead.Has(key) && (A_TickCount - lastRead[key][2] <= 13000)
-		return lastRead[key][1]
-	return 1
+	else if (key != "") && lastRead.Has(key) && (A_TickCount - lastRead[key][2] <= 13000)
+		ret := lastRead[key][1]
+	else
+		ret := 1
+	; diagnostics for the hard tiles (colour boosts, haste): once every few seconds per buff, log the read area and
+	; what each pass saw, so a stuck value can be traced to geometry (area off the number) vs contrast (area right,
+	; reads nothing). Writes to tools/OCR_debug/buff_read_log.txt.
+	static dbgTick := Map()
+	if (key ~= "boost|haste") && (!dbgTick.Has(key) || (A_TickCount - dbgTick[key] > 4000))
+	{
+		dbgTick[key] := A_TickCount
+		try FileAppend FormatTime(, "HH:mm:ss") "  " key " area x" x1 "-" x2 " y" y1 "-" y2 " word=" ((IsSet(wordN) && wordN != "") ? wordN : "-") " crop=" ((IsSet(cropN) && cropN != "") ? cropN : "-") " read=" (n = "" ? "(none)" : n) " shown=" ret "`n", nm_OCR_RootDir() "\tools\OCR_debug\buff_read_log.txt"
+	}
+	return ret
 }
 
 ;  ---------------------------------------------------------------------------------------------------
@@ -1297,7 +1313,7 @@ BuffStackWords(pBMArea, reset := 0)
 ********************************************************************/
 DetectHoney()
 {
-	global honey_values, start_honey, start_time, ocr_language
+	global honey_values, start_honey, start_time, ocr_language, honey_rate_values, honey_rate_read
 
 	; check roblox window exists
 	hwnd := GetRobloxHWND()
@@ -1420,6 +1436,10 @@ DetectHoney()
 
 	; update honey values array and write values to ini
 	index := (A_Min = "00") ? 60 : Integer(A_Min)
+	; store the game-shown rate for this minute even if the counter itself missed - that is exactly the minute the
+	; honey/sec graph would otherwise draw as a flat plateau. Always write (even ""), so last hour's value for the
+	; same minute index can't linger.
+	honey_rate_values[index] := honey_rate_read
 	if current_honey
 	{
 		honey_values[index] := current_honey
@@ -1548,8 +1568,19 @@ RequestReport(wParam, lParam, *)
 ; the OCR passes read only the number. The number is the first run of yellow columns right of the "Honey" label;
 ; the rate sits after a clear gap (measured ~30 px; the gaps inside the number, for commas, are only 1-2 px).
 ; Does nothing if the label isn't found or there is no number run - so it can only help, never remove digits.
+; Parses BSS's "(+1,639,528/sec)" rate text into a plain number, or "" if it doesn't look like a rate. Requires the
+; word "sec" so a stray number is never taken as a rate.
+HoneyRateValue(text)
+{
+	if !RegExMatch(text, "i)sec")
+		return ""
+	d := RegExReplace(text, "[^0-9]", "")
+	return (d != "" && StrLen(d) <= 12) ? Integer(d) : ""
+}
+
 HoneyMaskRate(pBM, pBMc, w, h)
 {
+	global honey_rate_read
 	if !(result := nm_OCR_FromBitmap(pBM, 3, 0))
 		return
 	if !(label := HoneyTopLabel(result))
@@ -1591,6 +1622,16 @@ HoneyMaskRate(pBM, pBMc, w, h)
 	if (numEnd < 0)
 		return
 	cut := Min(w, numEnd + 8)
+	; read the "(+X/sec)" rate sitting right of the number before it is blanked. Same yellow as the digits, so the
+	; warm-colour isolation reads it. Used only to fill the honey/sec graph (see honey_gradients); a miss falls back.
+	rx1 := Min(w, numEnd + 6)
+	if (w - rx1 >= 20)
+	{
+		pRate := Gdip_CloneBitmapArea(pBM, rx1, 0, w - rx1, h), pRateW := HoneyWarm(pRate)
+		if (rr := nm_OCR_FromBitmap(pRateW, 4, 0))
+			honey_rate_read := HoneyRateValue(rr.Text)
+		Gdip_DisposeImage(pRate), Gdip_DisposeImage(pRateW)
+	}
 	if (cut >= w)
 		return
 	for p in [pBM, pBMc]
@@ -1612,6 +1653,7 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 
 	; first choice: the counter's digits recognised from pictures of BSS's honey font (exact, no OCR guessing)
 	global honey_read_source := "", honey_read_digits := "", honey_read_strong := 0, honey_read_feats := [], honey_read_guess := []
+	global honey_rate_read := "" ; reset per capture; HoneyMaskRate sets it if the "(+X/sec)" rate is on screen
 	global honey_read_tick := A_TickCount ; when the returned reading was on screen
 	global honey_glyph_feats, honey_glyph_guess, honey_pic_note
 	; (only trusted when a second capture agrees: one capture can catch the counter while something covers part
@@ -2529,7 +2571,7 @@ HoneyFromOCR(result, areaW)
 ********************************************************************************************************/
 SendHourlyReport()
 {
-	global pBM, regions, stat_regions, honey_values, honey_12h, backpack_values, buff_values, buff_colors, status_changes, start_time, start_honey, stats, latest_boost, latest_winds, graph_regions, version, natro_version, os_version, bitmaps, ocr_enabled, ocr_language, report_forced
+	global pBM, regions, stat_regions, honey_values, honey_12h, backpack_values, buff_values, buff_colors, status_changes, start_time, start_honey, stats, latest_boost, latest_winds, graph_regions, version, natro_version, os_version, bitmaps, ocr_enabled, ocr_language, report_forced, honey_rate_values
 	static session_spent := 0, honey_average := 0, honey_earned := 0, convert_time := 0, gather_time := 0, other_time := 0, stats_old := [["Total Boss Kills",0],["Total Vic Kills",0],["Total Bug Kills",0],["Total Planters",0],["Quests Done",0],["Disconnects",0]]
 	; a ?hr report is a snapshot: remember the hour-to-hour values so it doesn't change what the next scheduled report compares against
 	if report_forced
@@ -2631,6 +2673,12 @@ SendHourlyReport()
 		if (k < 60)
 			honey_gradients[k+1] := (honey_values[k+1]-honey_values[k])/60
 	honey_gradients[0] := honey_gradients[1], honey_gradients[61] := honey_gradients[60]
+	; prefer the game-shown "(+X/sec)" rate where we read it: it is the true honey/sec for that minute, so it replaces
+	; the flat line the counter-delta draws across minutes the counter missed. Only overrides points that already
+	; exist (never adds keys), so the graph structure is unchanged and a bad read can't break it - at worst ignored.
+	for k, rate in honey_rate_values
+		if (rate != "") && (rate > 0) && honey_gradients.Has(k)
+			honey_gradients[k] := rate
 
 	Loop 166
 		try honey_12h[A_Index - 1] := honey_12h[A_Index + 14]
