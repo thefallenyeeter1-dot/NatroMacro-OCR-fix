@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.17"
+version := "1.6.18"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1822,6 +1822,9 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 			FileDelete logPath
 		FileAppend FormatTime(, "HH:mm:ss") "  " ((best != "") ? best : "no reading") "  (" reads.Length " readings" ((picNote != "") ? ", pictures: " picNote : "") ")`n", logPath
 	}
+	; same garbage guard as the picture path: one digit repeated (e.g. 7777777777777) is never a real counter
+	if (best != "") && RegExMatch(best, "^(\d)\1{6,}$")
+		best := ""
 	; integers top out at 9,223,372,036,854,775,807 (~9.2 Qa); only larger values are kept as a float
 	if (best != "")
 		honey_read_source := "ocr", honey_read_digits := best, honey_read_tick := capTick, honey_read_strong := strong, honey_read_feats := snapFeats, honey_read_guess := snapGuess
@@ -1833,6 +1836,14 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 ; the accepted picture reading `digits`: sets the honey_read_* globals, logs it, returns the number
 HoneyPicturesResult(digits, note)
 {
+	; reject garbage that reads as one digit repeated (e.g. 7777777777777): a real counter is essentially never all
+	; the same digit, and such a read - confirmed by a second identical misread - spiked Honey Earned (the phantom
+	; drop back to the real value the next minute counted as honey "spent")
+	if RegExMatch(digits, "^(\d)\1{6,}$")
+	{
+		try FileAppend FormatTime(, "HH:mm:ss") "  dropped garbage read " digits " (all one digit)`n", nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
+		return 0
+	}
 	global honey_read_source := "pictures", honey_read_digits := digits, honey_read_tick := A_TickCount ; the latest capture
 	try {
 		logPath := nm_OCR_RootDir() "\tools\OCR_debug\honey_log.txt"
