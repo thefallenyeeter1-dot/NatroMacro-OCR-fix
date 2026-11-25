@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.15"
+version := "1.6.17"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1027,17 +1027,35 @@ BuffLearned()
 
 BuffLearnedHas(key, n) => BuffLearned().Has(key) && BuffLearned()[key].Has(n)
 
-; stack number from this buff's learned pictures, or "" (also "" if pictures of two different numbers match)
+; stack number from the learned pictures, or "" (also "" if pictures of two different numbers match)
 BuffLearnedMatch(pBMArea, key, x1, y1, x2, y2)
 {
 	learned := BuffLearned()
-	if (key = "") || !learned.Has(key)
-		return ""
 	w := Gdip_GetImageWidth(pBMArea), h := Gdip_GetImageHeight(pBMArea)
+	sx1 := Max(0, x1 - 8), sy1 := Max(0, y1 - 6), sx2 := Min(w, x2 + 10), sy2 := Min(h, y2 + 4)
+	; Pool every buff's learned pictures by number. Each saved picture is just the digit glyph - white fill, dark
+	; outline, and the tile behind it magenta-masked out (a wildcard in the search) - so it carries nothing
+	; buff-specific. The stack digits are the same glyph on every buff, so a number learned on a buff that reads
+	; often (haste reads every second and learns x2..x10 quickly) is then usable to read the SAME number on a buff
+	; that rarely gets a clean read of its own, like blue boost or focus. Capped per number so the search stays cheap.
+	pool := Map()
+	for bkey, nums in learned
+		for n, plist in nums
+		{
+			if !pool.Has(n)
+				pool[n] := []
+			for pT in plist
+				if (pool[n].Length < 6)
+					pool[n].Push(pT)
+		}
 	found := ""
-	for n, list in learned[key]
-		for pT in list
-			if (Gdip_ImageSearch(pBMArea, pT, , Max(0, x1 - 8), Max(0, y1 - 6), Min(w, x2 + 10), Min(h, y2 + 4), 70, 0xFF00FF) = 1)
+	; variation 110 (was 70): the mask is matched by absolute pixel value against the raw bar, and on a see-through
+	; buff bar the white digits swing in brightness with whatever shows through behind them - at 70 a digit dimmed
+	; only to ~180 already fails. 110 lets the SAME digit match despite the bleed; different digits still differ by
+	; shape, and the found!=n ambiguity check below throws away any cross-digit false match.
+	for n, plist in pool
+		for pT in plist
+			if (Gdip_ImageSearch(pBMArea, pT, , sx1, sy1, sx2, sy2, 110, 0xFF00FF) = 1)
 			{
 				if (found != "") && (found != n)
 					return ""
@@ -1161,7 +1179,7 @@ BuffLearnPromote(key, n, pT)
 		learned[key] := Map()
 	if !learned[key].Has(n)
 		learned[key][n] := []
-	if (learned[key][n].Length >= 3)
+	if (learned[key][n].Length >= 6) ; was 3: keep more looks of the same number so different see-through backgrounds behind the digit each have a template that matches
 	{
 		Gdip_DisposeImage(pT)
 		return
