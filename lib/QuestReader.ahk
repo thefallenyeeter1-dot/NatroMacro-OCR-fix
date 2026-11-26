@@ -245,9 +245,45 @@ class QuestReader {
         next := this.ReadPage()
         if next.state != "ready" || next.title != result.title || next.rows.Length != result.rows.Length
             return (next.state = "unreadable") ? next : this.Fail(result.title ": second read didn't match the first (" next.state ")")
+        mismatch := false
         for i, state in result.rows
-            if state != next.rows[i]
-                return this.Fail(result.title ": objective " i " read " state " then " next.rows[i])
+            if (state != next.rows[i])
+                mismatch := true
+        if !mismatch
+            return next
+        ; the quest panel is see-through, so over a busy field a finished bar's colour can flip frame to frame and
+        ; the two reads disagree on an objective. Don't fail on a single flip: vote across a few more reads per
+        ; objective and take the majority, failing only if one stays genuinely split (a real tie).
+        votes := []
+        for i, state in result.rows {
+            v := Map(state, 1)
+            v[next.rows[i]] := (v.Has(next.rows[i]) ? v[next.rows[i]] : 0) + 1
+            votes.Push(v)
+        }
+        loop 3 {
+            Sleep 120
+            this.Capture()
+            extra := this.ReadPage()
+            if (extra.state != "ready" || extra.title != result.title || extra.rows.Length != result.rows.Length)
+                continue
+            for i, state in extra.rows
+                votes[i][state] := (votes[i].Has(state) ? votes[i][state] : 0) + 1
+        }
+        final := [], incomplete := false
+        for i, v in votes {
+            best := "", bestC := 0, tie := false
+            for st, c in v {
+                if (c > bestC)
+                    best := st, bestC := c, tie := false
+                else if (c = bestC)
+                    tie := true
+            }
+            if (tie || best = "")
+                return this.Fail(result.title ": objective " i " read inconsistently")
+            final.Push(best)
+            incomplete := incomplete || (best = "incomplete")
+        }
+        next.rows := final, next.incomplete := incomplete
         return next
     }
 

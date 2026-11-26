@@ -30,7 +30,7 @@ SetWorkingDir A_ScriptDir "\.."
 ; fork version: bumped with every update (yours or Claude's). What each version changed is in CHANGELOG.md
 ; in the macro folder. Shown as "Patch v..." in the startup report and above the timestamp in every hourly report
 fork_name := "Baddie Mon"
-version := "1.6.18"
+version := "1.6.20"
 
 bg_opacity := 0.6
 panel_alpha := 0x80
@@ -1720,7 +1720,10 @@ ReadHoneyCounter(winX, winY, winW, offsetY)
 		{
 			pPad := HoneyPad(tv[2])
 			Gdip_DisposeImage(tv[2])
-			for scale in [3, 4, 5]
+			; 7 and 9 added for very small UI text: on a high-resolution / display-scaled PC the counter can render
+			; at ~6 px per digit, where 5x (~30 px) is still too small for OCR; 9x gives it ~55 px. The early-exit
+			; below stops as soon as two sources agree, so normal-size counters still finish at 3-4x as before.
+			for scale in [3, 4, 5, 7, 9]
 			{
 				if !(result := nm_OCR_FromBitmap(pPad, scale, 0))
 					continue
